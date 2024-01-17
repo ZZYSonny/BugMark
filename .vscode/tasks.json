@@ -5,16 +5,32 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "compile",
-			"problemMatcher": "$tsc-watch",
+			"script": "dev:watch",
 			"isBackground": true,
 			"presentation": {
-				"reveal": "never"
+				"reveal": "silent"
 			},
 			"group": {
 				"kind": "build",
 				"isDefault": true
-			}
+			},
+			"problemMatcher": [
+				{
+					"pattern": [
+						{
+							"regexp": ".",
+							"file": 1,
+							"location": 2,
+							"message": 3
+						}
+					],
+					"background": {
+						"activeOnStart": true,
+						"beginsPattern": ".",
+						"endsPattern": ".",
+					}
+				}
+			]
 		}
 	]
 }

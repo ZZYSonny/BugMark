@@ -1,5 +1,5 @@
 {
-  "name": "bookmarkfordebugging",
+  "name": "bugmark",
   "displayName": "BookmarkForDebugging",
   "description": "",
   "version": "0.0.1",
@@ -14,15 +14,44 @@
   "contributes": {
     "commands": [
       {
-        "command": "bookmarkfordebugging.helloWorld",
-        "title": "Hello World"
+        "command": "bugmark.command.markline",
+        "title": "BugMark: bookmark current line"
+      },
+      {
+        "command": "bugmark.contextmenu.setbreakpoint",
+        "title": "Set break point"
       }
-    ]
+    ],
+    "views": {
+      "bugmark-container": [
+        {
+          "id": "bugmark.view.bookmarks",
+          "name": "Node Dependencies"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "bugmark-container",
+          "title": "Bookmark",
+          "icon": "$(bookmark)"
+        }
+      ]
+    },
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "bugmark.contextmenu.setbreakpoint",
+          "when": "view == bugmark-container"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external --sourcemap=external",
-    "watch": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external --sourcemap=external --watch"
+    "dev:build": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external --sourcemap=inline",
+    "dev:watch": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external --sourcemap=inline --watch"
   },
   "devDependencies": {
     "@types/node": "18.x",
