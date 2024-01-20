@@ -98,36 +98,38 @@ class RecordItem extends vscode.TreeItem {
 		f(this);
 	}
 
+	getChildIDByName(name: string) {
+		return this.children.findIndex((x) => x.label === name);
+	}
+
 	findDown(path: Array<string>): [number, RecordItem] {
-		let cur: RecordItem = this;
-		let i = 0;
-		for (; i < path.length; i++) {
-			const next = cur.children.find((x) => x.label === path[i])
-			if (!next) break;
-			else cur = next;
+		let id = this.getChildIDByName(path[0]);
+		if (id == -1) {
+			return [0, this];
+		} else {
+			let ans = this.children[id].findDown(path.slice(1));
+			ans[0] += 1;
+			return ans;
 		}
-		return [i, cur];
 	}
 
 	addDown(path: Array<string>, props: Array<RecordProp>) {
-		let cur: RecordItem = this;
-		let last = path.pop();
-		for (const s of path) {
-			const next = new RecordItem(cur, s, new Map());
-			cur.children.push(next);
-			cur = next;
+		if (path.length === 1) {
+			this.children.push(new RecordItem(this, path[0], props))
+		} else {
+			const next = new RecordItem(this, path[0], new Map());
+			next.addDown(path.slice(1), props);
 		}
-		cur.children.push(new RecordItem(cur, last, props))
 	}
 
 	removeUp(): RecordItem {
-		if(this.parent==null){
+		if (this.parent == null) {
 			return this;
-		} else if(this.parent.children.length==1){
+		} else if (this.parent.children.length == 1) {
 			this.parent.children = [];
 			return this.parent.removeUp();
 		} else {
-			const id = this.parent.children.findIndex((x) => x == this);
+			const id = this.parent.getChildIDByName(this.label.toString());
 			this.parent.children.splice(id, 1);
 			return this;
 		}
@@ -182,12 +184,12 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 
 	}
 
-	updateCheckBox(){
-		this.root.forEach((x)=>x.updateCheckBox());
+	updateCheckBox() {
+		this.root.forEach((x) => x.updateCheckBox());
 	}
 
 	refresh(node: RecordItem | null) {
-		if(node === this.root) node = null;
+		if (node === this.root) node = null;
 		this.emitterOnDidChangeTreeData.fire(node);
 	}
 
@@ -220,8 +222,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(view);
 	context.subscriptions.push(vscode.commands.registerCommand(
-		'bugmark.command.markline',
-		async () => {
+		'bugmark.command.markline', async () => {
 			const props = [getCurProp()];
 			const path = await vscode.window.showInputBox({
 				title: "Bookmark Name?",
@@ -231,8 +232,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
-		"bugmark.view.title.refresh",
-		() => {
+		"bugmark.view.title.refresh", () => {
 			provider.loadFromFile();
 			provider.refresh(null)
 		}
@@ -243,14 +243,12 @@ export function activate(context: vscode.ExtensionContext) {
 		borderStyle: 'solid'
 	})
 	context.subscriptions.push(vscode.commands.registerCommand(
-		"bugmark.view.item.goto",
-		async (item: RecordItem) => {
-			const headProp = item.props.find((x) => x.head);
-			const doc = await vscode.workspace.openTextDocument(headProp.file);
+		"bugmark.view.item.goto", async (item: RecordItem) => {
+			const head = item.getHead();
+			const doc = await vscode.workspace.openTextDocument(head.file);
 			const editor = await vscode.window.showTextDocument(doc);
-			const range = editor.document.lineAt(headProp.lineno).range;
-			// Select and Reveal
-			editor.selection = new vscode.Selection(range.start, range.start);
+			const range = editor.document.lineAt(head.lineno).range;
+			// Reveal
 			editor.revealRange(range);
 			// Highlight line for 1 sec
 			gotoDecorationLocation = [range];
@@ -263,8 +261,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
-		"bugmark.view.item.rename",
-		async (item: RecordItem) => {
+		"bugmark.view.item.rename", async (item: RecordItem) => {
 			const path = await vscode.window.showInputBox({
 				title: "New Bookmark Name?",
 				prompt: "Split with /"
