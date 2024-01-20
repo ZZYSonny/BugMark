@@ -17,11 +17,12 @@ function getCurProp(): RecordProp {
 	const editor = vscode.window.activeTextEditor;
 	const document = editor.document;
 	const cursor = editor.selection.active;
+	const line = document.lineAt(cursor);
 
 	return {
 		file: document.fileName,
-		lineno: document.lineAt(cursor).lineNumber,
-		content: "",
+		lineno: line.lineNumber,
+		content: line.text,
 		commit: "",
 		head: true
 	}
@@ -86,24 +87,25 @@ class RecordItem extends vscode.TreeItem {
 	}
 
 	updateCheckBox() {
-		let checked = false;
+		const oldState = this.checked();
+		let newState = false;
 		if (this.props) {
-			checked = vscode.debug.breakpoints.some(
+			newState = vscode.debug.breakpoints.some(
 				(bp) => this.matchBreakpoint(bp)
 			);
 		} if (this.children.length > 0) {
-			checked = this.children.every((c) => c.checked());
+			newState = this.children.every((c) => c.checked());
 		}
-		this.checkboxState = checked
+		this.checkboxState = newState
 			? vscode.TreeItemCheckboxState.Checked
 			: vscode.TreeItemCheckboxState.Unchecked;
+		return oldState != newState;
 	}
 
-	forEach(f: (x: RecordItem) => void): void {
-		if (this.children.length > 0) {
-			this.children.forEach((x) => x.forEach(f))
-		}
-		f(this);
+	forEachAndRefresh(f: (x: RecordItem) => boolean): RecordItem | null {
+		const res = this.children.map((x) => x.forEachAndRefresh(f));
+		if (f(this)) return this;
+		else return res.find(x => x);
 	}
 
 	getChildIDByName(name: string) {
@@ -166,14 +168,14 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 				["line 1", [{
 					file: "/home/zzysonny/Documents/Code/Projects/VSCExtension/ExtDebugFolder/1.js",
 					lineno: 0,
-					content: "line 1",
+					content: "Line 1",
 					commit: "",
 					head: true
 				}]],
 				["line 2", [{
 					file: "/home/zzysonny/Documents/Code/Projects/VSCExtension/ExtDebugFolder/1.js",
 					lineno: 1,
-					content: "line 2",
+					content: "Line 2",
 					commit: "",
 					head: true
 				}]],
@@ -187,7 +189,8 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 	}
 
 	updateCheckBox() {
-		this.root.forEach((x) => x.updateCheckBox());
+		const changed = this.root.forEachAndRefresh((x) => x.updateCheckBox());
+		this.refresh(changed.parent);
 	}
 
 	refresh(node: RecordItem | null) {
@@ -307,7 +310,6 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.debug.onDidChangeBreakpoints((ev) => {
 		if (!changeCheckbox) {
 			provider.updateCheckBox();
-			provider.refresh(null);
 		}
 	}));
 }
