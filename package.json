@@ -26,7 +26,7 @@
       "bugmark-container": [
         {
           "id": "bugmark.view.bookmarks",
-          "name": "Node Dependencies"
+          "name": "Saved Bookmarks"
         }
       ]
     },
@@ -34,7 +34,7 @@
       "activitybar": [
         {
           "id": "bugmark-container",
-          "title": "Bookmark",
+          "title": "BugMark",
           "icon": "$(bookmark)"
         }
       ]
