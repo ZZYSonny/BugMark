@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 type RecursiveMapArray<S, T> = Array<T> | Map<S, RecursiveMapArray<S, T>>
 type RecordJSON = RecursiveMapArray<string, RecordProp>
 
-class RecordProp {
+interface RecordProp {
 	file: string
 	lineno: number
 	content: string
@@ -33,23 +33,13 @@ class RecordItem extends vscode.TreeItem {
 	children: Array<RecordItem> = []
 
 	constructor(parent: RecordItem | null, name: string, json: RecordJSON) {
-		let checked = false;
 		if (json instanceof Array) {
 			super(name, vscode.TreeItemCollapsibleState.None);
 			this.props = json;
-			const head = this.props.find((x) => x.head)
-			checked = vscode.debug.breakpoints.some((bp) => (
-				(bp instanceof vscode.SourceBreakpoint) &&
-				(bp.location.uri.path === head.file) &&
-				(bp.location.range.start.line === head.lineno)
-			));
 		} else {
 			super(name, vscode.TreeItemCollapsibleState.Expanded);
 			this.children = Array.from(json).map(
 				([name, node]) => new RecordItem(this, name, node)
-			)
-			checked = this.children.every(
-				(c)=>c.checkboxState === vscode.TreeItemCheckboxState.Checked
 			)
 		}
 		this.parent = parent;
@@ -58,17 +48,91 @@ class RecordItem extends vscode.TreeItem {
 			title: "Goto file",
 			arguments: [this]
 		}
-		this.checkboxState = checked
-			? vscode.TreeItemCheckboxState.Checked
-			: vscode.TreeItemCheckboxState.Unchecked;
+		this.updateCheckBox();
+	}
+
+	getHead() {
+		return this.props.find((x) => x.head);
+	}
+
+	matchBreakpoint(bp: vscode.Breakpoint): boolean {
+		const head = this.getHead();
+		return (
+			(bp instanceof vscode.SourceBreakpoint) &&
+			(bp.location.uri.path === head.file) &&
+			(bp.location.range.start.line === head.lineno)
+		);
 	}
 
 	toJSON() {
 		if (this.props) return this.props;
 		else return this.children.map((x) => x.toJSON());
 	}
-}
 
+	checked() {
+		if (this.checkboxState instanceof Object) {
+			return this.checkboxState.state === vscode.TreeItemCheckboxState.Checked;
+		} else {
+			return this.checkboxState === vscode.TreeItemCheckboxState.Checked;
+		}
+	}
+
+	updateCheckBox() {
+		let checked = false;
+		if (this.props) {
+			checked = vscode.debug.breakpoints.some(
+				(bp) => this.matchBreakpoint(bp)
+			);
+		} if (this.children.length > 0) {
+			checked = this.children.every((c) => c.checked());
+		}
+		this.checkboxState = checked
+			? vscode.TreeItemCheckboxState.Checked
+			: vscode.TreeItemCheckboxState.Unchecked;
+	}
+
+	forEach(f: (x: RecordItem) => void): void {
+		if (this.children.length > 0) {
+			this.children.forEach((x) => x.forEach(f))
+		}
+		f(this);
+	}
+
+	findDown(path: Array<string>): [number, RecordItem] {
+		let cur: RecordItem = this;
+		let i = 0;
+		for (; i < path.length; i++) {
+			const next = cur.children.find((x) => x.label === path[i])
+			if (!next) break;
+			else cur = next;
+		}
+		return [i, cur];
+	}
+
+	addDown(path: Array<string>, props: Array<RecordProp>) {
+		let cur: RecordItem = this;
+		let last = path.pop();
+		for (const s of path) {
+			const next = new RecordItem(cur, s, new Map());
+			cur.children.push(next);
+			cur = next;
+		}
+		cur.children.push(new RecordItem(cur, last, props))
+	}
+
+	removeUp(): RecordItem {
+		if(this.parent==null){
+			return this;
+		} else if(this.parent.children.length==1){
+			this.parent.children = [];
+			return this.parent.removeUp();
+		} else {
+			const id = this.parent.children.findIndex((x) => x == this);
+			this.parent.children.splice(id, 1);
+			return this;
+		}
+	}
+}
 
 export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> {
 	private emitterOnDidChangeTreeData = new vscode.EventEmitter<RecordItem>();
@@ -114,51 +178,31 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		this.root = new RecordItem(null, "root", json);
 	}
 
-	refresh() {
-		this.emitterOnDidChangeTreeData.fire(null);
+	writeToFile(): void {
+
 	}
 
-	findItemWithPath(path: Array<string>): [number, RecordItem] {
-		let cur = this.root;
-		let i = 0;
-		for (; i < path.length; i++) {
-			const next = cur.children.find((x) => x.label === path[i])
-			if (!next) break;
-			else cur = next;
-		}
-		return [i, cur];
+	updateCheckBox(){
+		this.root.forEach((x)=>x.updateCheckBox());
+	}
+
+	refresh(node: RecordItem | null) {
+		if(node === this.root) node = null;
+		this.emitterOnDidChangeTreeData.fire(node);
 	}
 
 	addItemWithPath(pathstr: string, props: Array<RecordProp>): void {
 		const path = pathstr.split("/");
-		// Follow existing folder
-		let [i, changed] = this.findItemWithPath(path);
+		let [i, changed] = this.root.findDown(path);
 		if (i == path.length) throw `${pathstr} already exists`
 		if (changed.props) throw `${path.slice(0, i).join("/")} is not a folder`
-		// Add new folder
-		let cur = changed;
-		for (; i < path.length - 1; i++) {
-			const next = new RecordItem(cur, path[i], new Map());
-			cur.children.push(next);
-			cur = next;
-		}
-		// Add new leaf item
-		cur.children.push(new RecordItem(cur, path.pop(), props))
-		// Update view
-		this.emitterOnDidChangeTreeData.fire(changed.parent);
+		changed.addDown(path.slice(i), props);
+		this.refresh(changed.parent);
 	}
 
 	removeItem(item: RecordItem) {
-		let cur = item;
-		while (cur.parent) {
-			const parent = cur.parent;
-			const id = parent.children.findIndex((x) => x == cur);
-			parent.children.splice(id, 1);
-			cur = parent;
-			if (cur.children.length > 0) break;
-		}
-		// Update view
-		this.emitterOnDidChangeTreeData.fire(cur);
+		const changed = item.removeUp();
+		this.refresh(changed.parent);
 	}
 
 	renameItem(item: RecordItem, newpath: string) {
@@ -170,15 +214,19 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 let provider = new BugMarkTreeProvider();
 
 export function activate(context: vscode.ExtensionContext) {
-	context.subscriptions.push(vscode.window.registerTreeDataProvider(
+	let view = vscode.window.createTreeView(
 		"bugmark.view.bookmarks",
-		provider
-	))
+		{ treeDataProvider: provider }
+	);
+	context.subscriptions.push(view);
 	context.subscriptions.push(vscode.commands.registerCommand(
 		'bugmark.command.markline',
-		() => {
+		async () => {
 			const props = [getCurProp()];
-			const path = "2/added";
+			const path = await vscode.window.showInputBox({
+				title: "Bookmark Name?",
+				prompt: "Split with /"
+			})
 			provider.addItemWithPath(path, props);
 		}
 	))
@@ -186,7 +234,7 @@ export function activate(context: vscode.ExtensionContext) {
 		"bugmark.view.title.refresh",
 		() => {
 			provider.loadFromFile();
-			provider.refresh()
+			provider.refresh(null)
 		}
 	))
 	let gotoDecorationLocation = [];
@@ -216,8 +264,11 @@ export function activate(context: vscode.ExtensionContext) {
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.item.rename",
-		(item: RecordItem) => {
-			const path = "1/line 3";
+		async (item: RecordItem) => {
+			const path = await vscode.window.showInputBox({
+				title: "New Bookmark Name?",
+				prompt: "Split with /"
+			})
 			provider.renameItem(item, path);
 		}
 	))
@@ -225,11 +276,31 @@ export function activate(context: vscode.ExtensionContext) {
 		"bugmark.view.item.remove",
 		(item: RecordItem) => provider.removeItem(item)
 	))
-	context.subscriptions.push(vscode.commands.registerCommand(
-		"bugmark.view.item.breakpoint",
-		() => { }
-	))
-
+	view.onDidChangeCheckboxState((ev) => {
+		for (const [record, _] of ev.items)
+			if (record.props) {
+				const head = record.getHead();
+				if (record.checked()) {
+					vscode.debug.addBreakpoints([
+						new vscode.SourceBreakpoint(
+							new vscode.Location(
+								vscode.Uri.file(head.file),
+								new vscode.Position(head.lineno, 0)
+							)
+						)
+					])
+				} else {
+					const bp = vscode.debug.breakpoints.find(
+						(b) => record.matchBreakpoint(b)
+					);
+					vscode.debug.removeBreakpoints([bp]);
+				}
+			}
+	})
+	vscode.debug.onDidChangeBreakpoints((ev) => {
+		provider.updateCheckBox();
+		provider.refresh(null);
+	})
 }
 export function deactivate() {
 	provider = null;
