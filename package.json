@@ -77,7 +77,7 @@
         "icon": "$(close)"
       },
       {
-        "command": "bugmark.view.item.setbreakpoint",
+        "command": "bugmark.view.item.breakpoint",
         "title": "Set break point",
         "icon": "$(activate-breakpoints)"
       }

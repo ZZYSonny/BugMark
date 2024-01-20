@@ -25,27 +25,6 @@ function getCurProp(): RecordProp {
 	}
 }
 
-function getBugmarkFromFile(): RecordJSON {
-	return new Map([
-		["1", new Map([
-			["line 1", [{
-				file: "1.js",
-				lineno: 0,
-				content: "line 1",
-				commit: "",
-				head: true
-			}]],
-			["line 2", [{
-				file: "1.js",
-				lineno: 1,
-				content: "line 2",
-				commit: "",
-				head: true
-			}]],
-		])]
-	]);
-}
-
 class RecordItem extends vscode.TreeItem {
 	parent: RecordItem | null
 	props: Array<RecordProp> | null = null
@@ -87,27 +66,55 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		else return Promise.resolve(this.root.children);
 	}
 
-	getParent(element: RecordItem){
+	getParent(element: RecordItem) {
 		return element.parent;
 	}
 
-	loadFromFile() {
-		return new RecordItem(null, "root", getBugmarkFromFile());
+	loadFromFile(): RecordItem {
+		const json = new Map([
+			["1", new Map([
+				["line 1", [{
+					file: "1.js",
+					lineno: 0,
+					content: "line 1",
+					commit: "",
+					head: true
+				}]],
+				["line 2", [{
+					file: "1.js",
+					lineno: 1,
+					content: "line 2",
+					commit: "",
+					head: true
+				}]],
+			])]
+		]);
+		return new RecordItem(null, "root", json);
 	}
 
-	addItemWithPath(pathstr: string, props: Array<RecordProp>) {
-		const path = pathstr.split("/");
+	refresh() {
+		this.emitterOnDidChangeTreeData.fire(null);
+	}
+
+	findItemWithPath(path: Array<string>): [number, RecordItem] {
 		let cur = this.root;
 		let i = 0;
-		// Follow existing folder
-		for (; i < path.length - 1; i++) {
-			if (cur.props) throw `${path.slice(0, i + 1).join("/")} is not a folder`
+		for (; i < path.length; i++) {
 			const next = cur.children.find((x) => x.label === path[i])
 			if (!next) break;
 			else cur = next;
 		}
+		return [i, cur];
+	}
+
+	addItemWithPath(pathstr: string, props: Array<RecordProp>): void {
+		const path = pathstr.split("/");
+		// Follow existing folder
+		let [i, changed] = this.findItemWithPath(path);
+		if (changed.props) throw `${path.slice(0, i).join("/")} is not a folder`
+		if (i == path.length) throw `${pathstr} is already a bookmark`
 		// Add new folder
-		const changed = cur;
+		let cur = changed;
 		for (; i < path.length - 1; i++) {
 			const next = new RecordItem(cur, path[i], null);
 			cur.children.push(next);
@@ -116,7 +123,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		// Add new leaf item
 		cur.children.push(new RecordItem(cur, path.pop(), props))
 		// Update view
-		if(changed.parent) this.emitterOnDidChangeTreeData.fire(changed);
+		if (changed.parent) this.emitterOnDidChangeTreeData.fire(changed);
 		else this.emitterOnDidChangeTreeData.fire(null);
 	}
 }
@@ -131,21 +138,29 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand(
 		'bugmark.command.markline',
 		() => {
-			const pathstr = "1/added";
 			const props = [getCurProp()];
-			provider.addItemWithPath(pathstr, props);
+			const path = "2/added";
+			provider.addItemWithPath(path, props);
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.command.refresh",
-		() => { }
+		() => provider.refresh()
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.item.goto",
 		() => { }
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
-		"bugmark.view.item.setbreakpoint",
+		"bugmark.view.item.rename",
+		() => { }
+	))
+	context.subscriptions.push(vscode.commands.registerCommand(
+		"bugmark.view.item.remove",
+		() => { }
+	))
+	context.subscriptions.push(vscode.commands.registerCommand(
+		"bugmark.view.item.breakpoint",
 		() => { }
 	))
 
