@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+//const gitExtension = vscode.extensions.getExtension('vscode.git').exports;
+//const gitAPI = gitExtension.getAPI(1);
 
 type RecursiveMapArray<S, T> = Array<T> | Map<S, RecursiveMapArray<S, T>>
 type RecordJSON = RecursiveMapArray<string, RecordProp>
