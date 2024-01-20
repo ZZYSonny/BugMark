@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { RecordItem, getCurProp } from './record';
 
 export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> {
@@ -24,29 +25,41 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 	}
 
 	loadFromFile(): void {
-		const json = new Map([
-			["1", new Map([
-				["line 1", [{
-					file: "/home/zzysonny/Documents/Code/Projects/VSCExtension/ExtDebugFolder/1.js",
-					lineno: 0,
-					content: "Line 1",
-					commit: "",
-					head: true
-				}]],
-				["line 2", [{
-					file: "/home/zzysonny/Documents/Code/Projects/VSCExtension/ExtDebugFolder/1.js",
-					lineno: 1,
-					content: "Line 2",
-					commit: "",
-					head: true
-				}]],
-			])]
-		]);
+		const reviver = (key: string, value: any) => {
+			if (typeof value === "object" && value &&
+				Object.values(value).every(
+					x => x instanceof Array || x instanceof Map
+				)) {
+				return new Map(Object.entries(value));
+			}
+			return value;
+		}
+		const fileURI = vscode.Uri.joinPath(
+			vscode.workspace.workspaceFolders[0].uri,
+			".vscode", "bugmark.json"
+		);
+		if (!fs.existsSync(fileURI.fsPath)) {
+			this.writeToFile({});
+		}
+		const buffer = fs.readFileSync(fileURI.fsPath);
+		const json = JSON.parse(buffer.toString(), reviver);
 		this.root = new RecordItem(null, "root", json);
 	}
 
-	writeToFile(): void {
-
+	writeToFile(data: Object | null = null): void {
+		const folderURI = vscode.Uri.joinPath(
+			vscode.workspace.workspaceFolders[0].uri,
+			".vscode"
+		);
+		const fileURI = vscode.Uri.joinPath(
+			folderURI,
+			"bugmark.json"
+		);
+		if (!data) data = this.root.serialize();
+		if (!fs.existsSync(folderURI.path)) {
+			fs.mkdirSync(folderURI.path, { recursive: true });
+		}
+		fs.writeFileSync(fileURI.fsPath, JSON.stringify(data));
 	}
 
 	updateCheckBox() {
@@ -101,6 +114,7 @@ export function activate(context: vscode.ExtensionContext) {
 		"bugmark.view.title.refresh", () => {
 			provider.loadFromFile();
 			provider.refresh(null)
+			//provider.writeToFile();
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(

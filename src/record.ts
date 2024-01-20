@@ -53,9 +53,11 @@ export class RecordItem extends vscode.TreeItem {
 	}
 
     //Exporter
-    toJSON() {
+    serialize() {
 		if (this.props) return this.props;
-		else return this.children.map((x) => x.toJSON());
+		else return Object.fromEntries(
+			this.children.map((x) => [x.label, x.serialize()])
+		)
 	}
 
     //Simple Getter
