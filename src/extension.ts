@@ -274,7 +274,9 @@ export function activate(context: vscode.ExtensionContext) {
 		"bugmark.view.item.remove",
 		(item: RecordItem) => provider.removeItem(item)
 	))
-	view.onDidChangeCheckboxState((ev) => {
+	let changeCheckbox = false;
+	context.subscriptions.push(view.onDidChangeCheckboxState((ev) => {
+		changeCheckbox = true;
 		for (const [record, _] of ev.items)
 			if (record.props) {
 				const head = record.getHead();
@@ -294,11 +296,14 @@ export function activate(context: vscode.ExtensionContext) {
 					vscode.debug.removeBreakpoints([bp]);
 				}
 			}
-	})
-	vscode.debug.onDidChangeBreakpoints((ev) => {
-		provider.updateCheckBox();
-		provider.refresh(null);
-	})
+		changeCheckbox = false;
+	}));
+	context.subscriptions.push(vscode.debug.onDidChangeBreakpoints((ev) => {
+		if (!changeCheckbox) {
+			provider.updateCheckBox();
+			provider.refresh(null);
+		}
+	}));
 }
 export function deactivate() {
 	provider = null;
