@@ -55,6 +55,14 @@ class RecordItem extends vscode.TreeItem {
 		return this.props.find((x) => x.head);
 	}
 
+	getFullPath() {
+		if (this.parent.parent == null) {
+			return this.label.toString();
+		} else {
+			return this.parent.getFullPath() + "/" + this.label.toString();
+		}
+	}
+
 	matchBreakpoint(bp: vscode.Breakpoint): boolean {
 		const head = this.getHead();
 		return (
@@ -113,26 +121,20 @@ class RecordItem extends vscode.TreeItem {
 		}
 	}
 
-	addDown(path: Array<string>, props: Array<RecordProp>) {
-		if (path.length === 1) {
-			this.children.push(new RecordItem(this, path[0], props))
-		} else {
+	addDown(path: Array<string>, item: RecordItem) {
+		if (path.length) {
 			const next = new RecordItem(this, path[0], new Map());
-			next.addDown(path.slice(1), props);
+			next.addDown(path.slice(1), item);
+		} else {
+			item.parent = this;
+			this.children.push(item);
 		}
 	}
 
-	removeUp(): RecordItem {
-		if (this.parent == null) {
-			return this;
-		} else if (this.parent.children.length == 1) {
-			this.parent.children = [];
-			return this.parent.removeUp();
-		} else {
-			const id = this.parent.getChildIDByName(this.label.toString());
-			this.parent.children.splice(id, 1);
-			return this;
-		}
+	removeFromParent(): RecordItem {
+		const id = this.parent.getChildIDByName(this.label.toString());
+		this.parent.children.splice(id, 1);
+		return this;
 	}
 }
 
@@ -193,23 +195,22 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		this.emitterOnDidChangeTreeData.fire(node);
 	}
 
-	addItemWithPath(pathstr: string, props: Array<RecordProp>): void {
-		const path = pathstr.split("/");
+	addItemWithPath(path: Array<string>, item: RecordItem) {
 		let [i, changed] = this.root.findDown(path);
-		if (i == path.length) throw `${pathstr} already exists`
-		if (changed.props) throw `${path.slice(0, i).join("/")} is not a folder`
-		changed.addDown(path.slice(i), props);
+		if (changed.props) throw `Expected all folders on the path`
+		const ans = changed.addDown(path.slice(i), item);
 		this.refresh(changed.parent);
+		return ans;
 	}
 
 	removeItem(item: RecordItem) {
-		const changed = item.removeUp();
-		this.refresh(changed.parent);
+		item.removeFromParent();
+		this.refresh(item.parent);
 	}
 
-	renameItem(item: RecordItem, newpath: string) {
+	renameItem(path: Array<string>, item: RecordItem) {
 		this.removeItem(item);
-		this.addItemWithPath(newpath, item.props)
+		this.addItemWithPath(path, item)
 	}
 }
 
@@ -223,12 +224,13 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(view);
 	context.subscriptions.push(vscode.commands.registerCommand(
 		'bugmark.command.markline', async () => {
-			const props = [getCurProp()];
-			const path = await vscode.window.showInputBox({
+			const pathstr = await vscode.window.showInputBox({
 				title: "Bookmark Name?",
 				prompt: "Split with /"
 			})
-			provider.addItemWithPath(path, props);
+			const path = pathstr.split("/");
+			const item = new RecordItem(null, path.pop(), [getCurProp()]);
+			provider.addItemWithPath(path, item);
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
@@ -263,11 +265,15 @@ export function activate(context: vscode.ExtensionContext) {
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.item.rename", async (item: RecordItem) => {
-			const path = await vscode.window.showInputBox({
+			const oldname = item.getFullPath();
+			const pathstr = await vscode.window.showInputBox({
 				title: "New Bookmark Name?",
-				prompt: "Split with /"
+				prompt: "Split with /",
+				value: oldname
 			})
-			provider.renameItem(item, path);
+			const path = pathstr.split("/");
+			item.label = path.pop();
+			provider.renameItem(path, item);
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
