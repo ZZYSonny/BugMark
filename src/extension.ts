@@ -248,7 +248,8 @@ export function activate(context: vscode.ExtensionContext) {
 			const doc = await vscode.workspace.openTextDocument(head.file);
 			const editor = await vscode.window.showTextDocument(doc);
 			const range = editor.document.lineAt(head.lineno).range;
-			// Reveal
+			// Select and Reveal
+			editor.selection = new vscode.Selection(range.start, range.start);
 			editor.revealRange(range);
 			// Highlight line for 1 sec
 			gotoDecorationLocation = [range];
