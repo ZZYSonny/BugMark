@@ -30,17 +30,25 @@ class RecordItem extends vscode.TreeItem {
 	props: Array<RecordProp> | null = null
 	children: Array<RecordItem> = []
 
-	constructor(parent: RecordItem | null, name: string, json: RecordJSON | null) {
+	constructor(parent: RecordItem | null, name: string, json: RecordJSON) {
+		let checked = false;
 		if (json instanceof Array) {
 			super(name, vscode.TreeItemCollapsibleState.None);
 			this.props = json;
+			const head = this.props.find((x) => x.head)
+			checked = vscode.debug.breakpoints.some((bp) => (
+				(bp instanceof vscode.SourceBreakpoint) &&
+				(bp.location.uri.path === head.file) &&
+				(bp.location.range.start.line === head.lineno)
+			));
 		} else {
 			super(name, vscode.TreeItemCollapsibleState.Expanded);
-			if (json) {
-				this.children = Array.from(json).map(
-					([name, node]) => new RecordItem(this, name, node)
-				)
-			}
+			this.children = Array.from(json).map(
+				([name, node]) => new RecordItem(this, name, node)
+			)
+			checked = this.children.every(
+				(c)=>c.checkboxState === vscode.TreeItemCheckboxState.Checked
+			)
 		}
 		this.parent = parent;
 		this.command = {
@@ -48,6 +56,9 @@ class RecordItem extends vscode.TreeItem {
 			title: "Goto file",
 			arguments: [this]
 		}
+		this.checkboxState = checked
+			? vscode.TreeItemCheckboxState.Checked
+			: vscode.TreeItemCheckboxState.Unchecked;
 	}
 
 	toJSON() {
@@ -125,7 +136,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		// Add new folder
 		let cur = changed;
 		for (; i < path.length - 1; i++) {
-			const next = new RecordItem(cur, path[i], null);
+			const next = new RecordItem(cur, path[i], new Map());
 			cur.children.push(next);
 			cur = next;
 		}
