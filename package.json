@@ -12,24 +12,6 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "bugmark.command.markline",
-        "title": "BugMark: bookmark current line"
-      },
-      {
-        "command": "bugmark.contextmenu.setbreakpoint",
-        "title": "Set break point"
-      }
-    ],
-    "views": {
-      "bugmark-container": [
-        {
-          "id": "bugmark.view.bookmarks",
-          "name": "Saved Bookmarks"
-        }
-      ]
-    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -39,14 +21,67 @@
         }
       ]
     },
-    "menus": {
-      "view/item/context": [
+    "views": {
+      "bugmark-container": [
         {
-          "command": "bugmark.contextmenu.setbreakpoint",
-          "when": "view == bugmark-container"
+          "id": "bugmark.view.bookmarks",
+          "name": "Saved Bookmarks"
         }
       ]
-    }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "bugmark.view.title.refresh",
+          "when": "view == bugmark.view.bookmarks",
+          "group": "navigation@0"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "bugmark.view.item.rename",
+          "when": "view == bugmark.view.bookmarks",
+          "group": "bugmark.view.bookmarks@0"
+        },
+        {
+          "command": "bugmark.view.item.setbreakpoint",
+          "when": "view == bugmark.view.bookmarks",
+          "group": "bugmark.view.bookmarks@1"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "bugmark.command.markline",
+        "title": "BugMark: bookmark current line",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "bugmark.view.title.refresh",
+        "title": "BugMark: Refresh bookmark view",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "bugmark.view.item.goto",
+        "title": "Goto file",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "bugmark.view.item.rename",
+        "title": "Edit name",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "bugmark.view.item.remove",
+        "title": "Remove",
+        "icon": "$(close)"
+      },
+      {
+        "command": "bugmark.view.item.setbreakpoint",
+        "title": "Set break point",
+        "icon": "$(activate-breakpoints)"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
