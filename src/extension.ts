@@ -176,6 +176,11 @@ export function activate(context: vscode.ExtensionContext) {
 			provider.refresh()
 		}
 	))
+	let gotoDecorationLocation = [];
+	const gotoDecoration = vscode.window.createTextEditorDecorationType({
+		borderWidth: '1px',
+		borderStyle: 'solid'
+	})
 	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.item.goto",
 		async (item: RecordItem) => {
@@ -183,8 +188,17 @@ export function activate(context: vscode.ExtensionContext) {
 			const doc = await vscode.workspace.openTextDocument(headProp.file);
 			const editor = await vscode.window.showTextDocument(doc);
 			const range = editor.document.lineAt(headProp.lineno).range;
-			editor.selection = new vscode.Selection(range.start, range.end);
+			// Select and Reveal
+			editor.selection = new vscode.Selection(range.start, range.start);
 			editor.revealRange(range);
+			// Highlight line for 1 sec
+			gotoDecorationLocation = [range];
+			editor.setDecorations(gotoDecoration, gotoDecorationLocation);
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			if (gotoDecorationLocation[0] == range) {
+				editor.setDecorations(gotoDecoration, []);
+				gotoDecorationLocation = []
+			}
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
