@@ -41,12 +41,12 @@
         {
           "command": "bugmark.view.item.rename",
           "when": "view == bugmark.view.bookmarks",
-          "group": "bugmark.view.bookmarks@0"
+          "group": "inline@0"
         },
         {
-          "command": "bugmark.view.item.setbreakpoint",
+          "command": "bugmark.view.item.remove",
           "when": "view == bugmark.view.bookmarks",
-          "group": "bugmark.view.bookmarks@1"
+          "group": "inline@1"
         }
       ]
     },
