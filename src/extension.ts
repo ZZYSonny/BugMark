@@ -95,7 +95,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		return new RecordItem(null, "root", getBugmarkFromFile());
 	}
 
-	addItemWithPath(pathstr: string, prop: RecordProp) {
+	addItemWithPath(pathstr: string, props: Array<RecordProp>) {
 		const path = pathstr.split("/");
 		let cur = this.root;
 		let i = 0;
@@ -114,7 +114,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 			cur = next;
 		}
 		// Add new leaf item
-		cur.children.push(new RecordItem(cur, path[path.length-1], [prop]))
+		cur.children.push(new RecordItem(cur, path.pop(), props))
 		// Update view
 		if(changed.parent) this.emitterOnDidChangeTreeData.fire(changed);
 		else this.emitterOnDidChangeTreeData.fire(null);
@@ -132,8 +132,8 @@ export function activate(context: vscode.ExtensionContext) {
 		'bugmark.command.markline',
 		() => {
 			const pathstr = "1/added";
-			const prop = getCurProp();
-			provider.addItemWithPath(pathstr, prop);
+			const props = [getCurProp()];
+			provider.addItemWithPath(pathstr, props);
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
