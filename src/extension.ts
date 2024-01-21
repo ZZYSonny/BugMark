@@ -100,6 +100,16 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 			if (changed) this.writeToFile();
 		}
 	}
+
+	applyRename(ev: vscode.FileRenameEvent){
+		const changed = this.root.forEach((x) => {
+			if (x.prop) {
+				return x.prop.applyRename(ev);
+			}
+			return false;
+		})
+		if (changed) this.writeToFile();
+	}
 }
 
 let provider = new BugMarkTreeProvider();
@@ -192,6 +202,9 @@ export function activate(context: vscode.ExtensionContext) {
 	// Update source location
 	vscode.workspace.onDidChangeTextDocument((ev) => {
 		provider.applyEdit(ev);
+	})
+	vscode.workspace.onDidRenameFiles((ev)=>{
+		provider.applyRename(ev);
 	})
 }
 export function deactivate() {

@@ -149,6 +149,16 @@ export class RecordProp implements IRecordProp {
 		return this.deleted || delta != 0 || modified;
 	}
 
+	applyRename(ev: vscode.FileRenameEvent): boolean {
+		for(const pair of ev.files){
+			if(this.file === pair.oldUri.path) {
+				this.file = pair.newUri.path;
+				return true;
+			}
+		}
+		return false;
+	}
+
 	checkValidity(document: vscode.TextDocument) {
 		if (!this.deleted) {
 			let newContent = "";
