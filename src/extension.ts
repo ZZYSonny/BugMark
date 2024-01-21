@@ -72,7 +72,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 
 	updateCheckBox() {
 		const changed = this.root.forEachAndRefresh((x) => x.updateCheckBox());
-		if(changed) this.refresh(changed.parent);
+		if (changed) this.refresh(changed.parent);
 	}
 
 	addItemWithPath(path: Array<string>, item: RecordItem) {
@@ -110,9 +110,13 @@ export function activate(context: vscode.ExtensionContext) {
 				title: "Bookmark Name?",
 				prompt: "Split with /"
 			})
-			const path = pathstr.split("/");
-			const item = new RecordItem(null, path.pop(), [getCurProp()]);
-			provider.addItemWithPath(path, item);
+			if (pathstr) {
+				const path = pathstr.split("/");
+				const item = new RecordItem(null, path.pop(), [getCurProp()]);
+				provider.addItemWithPath(path, item);
+			} else {
+				throw "No input"
+			}
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
@@ -135,9 +139,13 @@ export function activate(context: vscode.ExtensionContext) {
 				prompt: "Split with /",
 				value: oldname
 			})
-			const path = pathstr.split("/");
-			item.label = path.pop();
-			provider.renameItem(path, item);
+			if (pathstr) {
+				const path = pathstr.split("/");
+				item.label = path.pop();
+				provider.renameItem(path, item);
+			} else {
+				throw "No input"
+			}
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
