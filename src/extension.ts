@@ -99,11 +99,13 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 let provider = new BugMarkTreeProvider();
 
 export function activate(context: vscode.ExtensionContext) {
+	// Register view
 	let view = vscode.window.createTreeView(
 		"bugmark.view.bookmarks",
 		{ treeDataProvider: provider }
 	);
 	context.subscriptions.push(view);
+	// Register command
 	context.subscriptions.push(vscode.commands.registerCommand(
 		'bugmark.command.markline', async () => {
 			const pathstr = await vscode.window.showInputBox({
@@ -120,10 +122,9 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
-		"bugmark.view.title.refresh", () => {
+		"bugmark.view.title.reload", () => {
 			provider.loadFromFile();
 			provider.refresh(null)
-			//provider.writeToFile();
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
@@ -183,6 +184,10 @@ export function activate(context: vscode.ExtensionContext) {
 			provider.updateCheckBox();
 		}
 	}));
+	// Update source location
+	vscode.workspace.onDidChangeTextDocument((ev)=>{
+		console.log(ev);
+	})
 }
 export function deactivate() {
 	provider = null;

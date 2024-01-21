@@ -32,7 +32,7 @@
     "menus": {
       "view/title": [
         {
-          "command": "bugmark.view.title.refresh",
+          "command": "bugmark.view.title.reload",
           "when": "view == bugmark.view.bookmarks",
           "group": "navigation@0"
         }
@@ -57,7 +57,7 @@
         "icon": "$(check-all)"
       },
       {
-        "command": "bugmark.view.title.refresh",
+        "command": "bugmark.view.title.reload",
         "title": "BugMark: Refresh bookmark view",
         "icon": "$(refresh)"
       },
