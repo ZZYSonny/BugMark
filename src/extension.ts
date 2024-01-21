@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { RecordItem, getCurProp } from './record';
+import { RecordItem, RecordProp } from './record';
 
 export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> {
 	private emitterOnDidChangeTreeData = new vscode.EventEmitter<RecordItem>();
@@ -27,15 +27,6 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 
 	// Load / Store Ops
 	loadFromFile(): void {
-		const reviver = (key: string, value: any) => {
-			if (typeof value === "object" && value &&
-				Object.values(value).every(
-					x => x instanceof Array || x instanceof Map
-				)) {
-				return new Map(Object.entries(value));
-			}
-			return value;
-		}
 		const fileURI = vscode.Uri.joinPath(
 			vscode.workspace.workspaceFolders[0].uri,
 			".vscode", "bugmark.json"
@@ -44,8 +35,8 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 			this.writeToFile({});
 		}
 		const buffer = fs.readFileSync(fileURI.fsPath);
-		const json = JSON.parse(buffer.toString(), reviver);
-		this.root = new RecordItem(null, "root", json);
+		const json = JSON.parse(buffer.toString());
+		this.root = RecordItem.deserialize("", json);
 	}
 
 	writeToFile(data: Object | null = null): void {
@@ -61,7 +52,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		if (!fs.existsSync(folderURI.path)) {
 			fs.mkdirSync(folderURI.path, { recursive: true });
 		}
-		fs.writeFileSync(fileURI.fsPath, JSON.stringify(data));
+		fs.writeFileSync(fileURI.fsPath, JSON.stringify(data, null, 4));
 	}
 
 	// Command related ops.
@@ -71,7 +62,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 	}
 
 	updateCheckBox() {
-		const changed = this.root.forEachAndRefresh((x) => x.updateCheckBox());
+		const changed = this.root.forEach((x) => x.updateCheckBox());
 		if (changed) this.refresh(changed.parent);
 	}
 
@@ -94,6 +85,12 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		this.removeItem(item);
 		this.addItemWithPath(path, item);
 	}
+
+	applyEdit(document: vscode.TextDocument, changes: readonly vscode.TextDocumentContentChangeEvent[]) {
+		if (changes.length > 0) {
+			console.log(changes)
+		}
+	}
 }
 
 let provider = new BugMarkTreeProvider();
@@ -114,7 +111,7 @@ export function activate(context: vscode.ExtensionContext) {
 			})
 			if (pathstr) {
 				const path = pathstr.split("/");
-				const item = new RecordItem(null, path.pop(), [getCurProp()]);
+				const item = new RecordItem(path.pop(), [RecordProp.getCurProp()]);
 				provider.addItemWithPath(path, item);
 			} else {
 				throw "No input"
@@ -159,21 +156,10 @@ export function activate(context: vscode.ExtensionContext) {
 		changeCheckbox = true;
 		for (const [record, _] of ev.items)
 			if (record.props) {
-				const head = record.getHead();
-				if (record.checked()) {
-					vscode.debug.addBreakpoints([
-						new vscode.SourceBreakpoint(
-							new vscode.Location(
-								vscode.Uri.file(head.file),
-								new vscode.Position(head.lineno, 0)
-							)
-						)
-					])
+				if (record.getCheckboxState()) {
+					record.getHead().addBreakpoint();
 				} else {
-					const bp = vscode.debug.breakpoints.find(
-						(b) => record.matchBreakpoint(b)
-					);
-					vscode.debug.removeBreakpoints([bp]);
+					record.getHead().removeBreakpoint();
 				}
 			}
 		changeCheckbox = false;
@@ -185,8 +171,8 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 	// Update source location
-	vscode.workspace.onDidChangeTextDocument((ev)=>{
-		console.log(ev);
+	vscode.workspace.onDidChangeTextDocument((ev) => {
+		provider.applyEdit(ev.document, ev.contentChanges);
 	})
 }
 export function deactivate() {
