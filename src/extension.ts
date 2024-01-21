@@ -11,6 +11,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		this.loadFromFile();
 	}
 
+	// Tree Provider Ops
 	getTreeItem(element: RecordItem): vscode.TreeItem {
 		return element;
 	}
@@ -24,6 +25,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		return element.parent;
 	}
 
+	// Load / Store Ops
 	loadFromFile(): void {
 		const reviver = (key: string, value: any) => {
 			if (typeof value === "object" && value &&
@@ -62,14 +64,15 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		fs.writeFileSync(fileURI.fsPath, JSON.stringify(data));
 	}
 
-	updateCheckBox() {
-		const changed = this.root.forEachAndRefresh((x) => x.updateCheckBox());
-		this.refresh(changed.parent);
-	}
-
+	// Command related ops.
 	refresh(node: RecordItem | null) {
 		if (node === this.root) node = null;
 		this.emitterOnDidChangeTreeData.fire(node);
+	}
+
+	updateCheckBox() {
+		const changed = this.root.forEachAndRefresh((x) => x.updateCheckBox());
+		if(changed) this.refresh(changed.parent);
 	}
 
 	addItemWithPath(path: Array<string>, item: RecordItem) {
@@ -77,17 +80,19 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		if (changed.props) throw `Expected all folders on the path`
 		const ans = changed.addDown(path.slice(i), item);
 		this.refresh(changed.parent);
+		this.writeToFile();
 		return ans;
 	}
 
 	removeItem(item: RecordItem) {
 		item.removeFromParent();
 		this.refresh(item.parent);
+		this.writeToFile();
 	}
 
 	renameItem(path: Array<string>, item: RecordItem) {
 		this.removeItem(item);
-		this.addItemWithPath(path, item)
+		this.addItemWithPath(path, item);
 	}
 }
 
@@ -139,6 +144,7 @@ export function activate(context: vscode.ExtensionContext) {
 		"bugmark.view.item.remove",
 		(item: RecordItem) => provider.removeItem(item)
 	))
+	// Change breakpoint when checkbox state changes
 	let changeCheckbox = false;
 	context.subscriptions.push(view.onDidChangeCheckboxState((ev) => {
 		changeCheckbox = true;
@@ -163,6 +169,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		changeCheckbox = false;
 	}));
+	// Update checkbox when breakpoint changes
 	context.subscriptions.push(vscode.debug.onDidChangeBreakpoints((ev) => {
 		if (!changeCheckbox) {
 			provider.updateCheckBox();
