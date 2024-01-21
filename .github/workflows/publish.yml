@@ -15,7 +15,11 @@ jobs:
 
     - name: NPM init
       run: npm install
-  
+
+    - name: GITHUB env
+      env: # Or as an environment variable
+        BUGMARK_PAT: ${{ secrets.BUGMARK_PAT }}
+
     - name: VSCE publish
       run: npm run ci:publish
 
