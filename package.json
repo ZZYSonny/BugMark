@@ -1,6 +1,10 @@
 {
   "name": "bugmark",
-  "displayName": "BookmarkForDebugging",
+  "displayName": "Bookmarks for Debugging",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZZYSonny/BugMark"
+  },
   "description": "",
   "version": "0.0.1",
   "engines": {
@@ -79,14 +83,14 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "dev:build": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external --sourcemap=inline",
+    "vscode:prepublish": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external",
     "dev:watch": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external --sourcemap=inline --watch"
   },
   "devDependencies": {
     "@types/node": "18.x",
     "@types/vscode": "^1.85.0",
+    "esbuild": "^0.19.11",
     "typescript": "^5.3.3",
-    "esbuild": "^0.19.11"
+    "@vscode/vsce": "^2.22.0"
   }
 }
