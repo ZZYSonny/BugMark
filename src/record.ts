@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
-
-type RecursiveMapArray<S, T> = Array<T> | Map<S, RecursiveMapArray<S, T>>
-export type RecordJSON = RecursiveMapArray<string, RecordProp>
+import { distance } from 'fastest-levenshtein';
 
 const gotoDecoration = vscode.window.createTextEditorDecorationType({
 	borderWidth: '1px',
@@ -9,13 +7,18 @@ const gotoDecoration = vscode.window.createTextEditorDecorationType({
 })
 let gotoLocation = [];
 
-export class RecordProp {
+interface IRecordProp {
+	file: string,
+	lineno: number,
+	content: string,
+	deleted: boolean
+}
+
+export class RecordProp implements IRecordProp {
 	constructor(
 		public file: string,
 		public lineno: number,
 		public content: string,
-		public commit: string,
-		public head: boolean,
 		public deleted: boolean
 	) { }
 
@@ -29,8 +32,6 @@ export class RecordProp {
 			document.fileName,
 			line.lineNumber,
 			line.text,
-			document.getText(line.range),
-			true,
 			false
 		)
 	}
@@ -39,13 +40,17 @@ export class RecordProp {
 		return this;
 	}
 
+	static isProp(json: any) {
+		const requiredKeys = ["file", "lineno", "content", "deleted"];
+		const keys = Object.keys(json);
+		return keys.length === requiredKeys.length && requiredKeys.every(k => keys.includes(k));
+	}
+
 	static deserialize(json: any) {
 		return new RecordProp(
 			json.file,
 			json.lineno,
 			json.content,
-			json.commit,
-			json.head,
 			json.deleted
 		)
 	}
@@ -78,8 +83,11 @@ export class RecordProp {
 	}
 
 	// Ops require interacting with vscode
-	async reveal(ms: number) {
-		const doc = await vscode.workspace.openTextDocument(this.file);
+	async openTextDocument() {
+		return await vscode.workspace.openTextDocument(this.file);
+	}
+
+	async reveal(doc: vscode.TextDocument, ms: number) {
 		const editor = await vscode.window.showTextDocument(doc);
 		const range = editor.document.lineAt(this.lineno).range;
 		// Select and Reveal
@@ -98,7 +106,7 @@ export class RecordProp {
 	}
 
 	// Edit Ops
-	applyEdit(ev: vscode.TextDocumentChangeEvent): boolean{
+	applyEdit(ev: vscode.TextDocumentChangeEvent): boolean {
 		const document = ev.document;
 		const lineRange = new vscode.Range(
 			new vscode.Position(this.lineno, 0),
@@ -115,12 +123,17 @@ export class RecordProp {
 				this.deleted = true;
 				break;
 			} else {
-				if (change.range.start.line < this.lineno) {
+				const editBeforeLine = change.range.start.line < this.lineno;
+				const prependEnter = change.range.start.line === this.lineno && change.range.end.line === this.lineno && change.range.end.character === 0
+				console.log(this.content, editBeforeLine, prependEnter);
+				if ( editBeforeLine || prependEnter) {
 					// Current line is shifted
 					delta -= change.range.end.line - change.range.start.line;
 					delta += change.text.split("\n").length - 1;
 				}
-				if (change.range.end.line <= this.lineno) {
+				const modifiedLineStart = change.range.end.line <= this.lineno;
+				const modifiedLineOrLineEnd = change.range.start.line >= this.lineno;
+				if (modifiedLineStart || modifiedLineOrLineEnd) {
 					// Current line is changed
 					modified = true;
 				}
@@ -135,6 +148,43 @@ export class RecordProp {
 		}
 		return this.deleted || delta != 0 || modified;
 	}
+
+	checkValidity(document: vscode.TextDocument) {
+		if (!this.deleted) {
+			let newContent = "";
+			try {
+				newContent = document.lineAt(this.lineno).text;
+			} catch {
+				this.deleted = true;
+				return;
+			}
+			this.deleted = this.content != newContent;
+		}
+	}
+
+	adjustLineNo(document: vscode.TextDocument) {
+		let bestLine = this.lineno;
+		let bestScore = this.content.length;
+		for (let i = 0; i < 10; i++) {
+			for (const pid of [this.lineno + i, this.lineno - i]) {
+				if (pid >= 0 && pid < document.lineCount) {
+					const line = document.lineAt(pid).text;
+					const score = distance(this.content, line);
+					if (score < bestScore) {
+						bestLine = pid;
+						bestScore = score;
+					}
+				}
+			}
+		}
+		if (bestScore < this.content.length) {
+			this.lineno = bestLine;
+			this.content = document.lineAt(this.lineno).text;
+			this.deleted = false;
+			return true;
+		}
+		return false;
+	}
 }
 
 export class RecordItem extends vscode.TreeItem {
@@ -142,10 +192,10 @@ export class RecordItem extends vscode.TreeItem {
 
 	constructor(
 		public label: string,
-		public props: Array<RecordProp> | null = null,
+		public prop: RecordProp | null = null,
 		public children: Array<RecordItem> = []
 	) {
-		super(label, props ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Expanded);
+		super(label, prop ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Expanded);
 		this.command = {
 			command: "bugmark.view.item.goto",
 			title: "Goto file",
@@ -157,8 +207,8 @@ export class RecordItem extends vscode.TreeItem {
 
 	//Export and Import
 	serialize() {
-		if (this.props) {
-			return this.props.map((x) => x.serialize());
+		if (this.prop) {
+			return this.prop.serialize();
 		} else {
 			return Object.fromEntries(
 				this.children.map((x) => [x.label, x.serialize()])
@@ -167,10 +217,8 @@ export class RecordItem extends vscode.TreeItem {
 	}
 
 	static deserialize(name: string, json: any) {
-		if (json instanceof Array) {
-			const props = json.map(
-				(x) => RecordProp.deserialize(x)
-			);
+		if (RecordProp.isProp(json)) {
+			const props = RecordProp.deserialize(json);
 			return new RecordItem(name, props);
 		}
 		if (json instanceof Object) {
@@ -187,9 +235,14 @@ export class RecordItem extends vscode.TreeItem {
 		return this.children.findIndex((x) => x.label === name);
 	}
 
-	getHead() {
-		// Find the most relevant location history.
-		return this.props.find((x) => x.head);
+	getHeadWithCorrection(document: vscode.TextDocument): [boolean, RecordProp] {
+		const head = this.prop;
+		head.checkValidity(document);
+		if (head.deleted) {
+			const changed = head.adjustLineNo(document);
+			return [changed, head];
+		}
+		return [false, head];
 	}
 
 	getFullPath() {
@@ -253,11 +306,11 @@ export class RecordItem extends vscode.TreeItem {
 	updateCheckBox() {
 		const oldState = this.getCheckboxState();
 		let newState = false;
-		if (this.props) {
+		if (this.prop) {
 			// Current node is a leaf node representing some source location
 			// Tick if the line is already a breakpoint
 			newState = vscode.debug.breakpoints.some(
-				(bp) => this.getHead().matchBreakpoint(bp)
+				(bp) => this.prop.matchBreakpoint(bp)
 			);
 		} if (this.children.length > 0) {
 			// Current node is a tree node
@@ -278,6 +331,7 @@ export class RecordItem extends vscode.TreeItem {
 		// If current node or multiple children node needs updating
 		if (f(this) || res.length > 1) return this;
 		// Only one child node needs updating
-		else return res[0];
+		else if(res.length == 1) return res[0];
+		else return null;
 	}
 }

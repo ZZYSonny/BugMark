@@ -70,7 +70,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 
 	addItemWithPath(path: Array<string>, item: RecordItem) {
 		let [i, changed] = this.root.findDown(path);
-		if (changed.props) throw `Expected all folders on the path`
+		if (changed.prop) throw `Expected all folders on the path`
 		const ans = changed.addDown(path.slice(i), item);
 		this.refresh(changed.parent);
 		this.writeToFile();
@@ -91,18 +91,14 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 	// Edit Ops
 	applyEdit(ev: vscode.TextDocumentChangeEvent) {
 		if (ev.contentChanges.length > 0) {
-			const changed = this.root.forEach((x)=>{
-				if(x.props){
-					return x.getHead().applyEdit(ev);
+			const changed = this.root.forEach((x) => {
+				if (x.prop && x.prop.file === ev.document.uri.path) {
+					return x.prop.applyEdit(ev);
 				}
 				return false;
 			})
-			if(changed) this.writeToFile();
+			if (changed) this.writeToFile();
 		}
-	}
-
-	applyLineCheck() {
-
 	}
 }
 
@@ -126,7 +122,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const path = pathstr.split("/");
 				const item = new RecordItem(
 					path.pop(),
-					[RecordProp.fromCursor()]
+					RecordProp.fromCursor()
 				);
 				provider.addItemWithPath(path, item);
 			} else {
@@ -141,8 +137,11 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
-		"bugmark.view.item.goto", (item: RecordItem) => {
-			item.getHead().reveal(1000);
+		"bugmark.view.item.goto", async (item: RecordItem) => {
+			const document = await item.prop.openTextDocument();
+			const [changed, head] = item.getHeadWithCorrection(document);
+			await head.reveal(document, 1000);
+			if (changed) provider.writeToFile();
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
@@ -168,18 +167,22 @@ export function activate(context: vscode.ExtensionContext) {
 	))
 	// Change breakpoint when checkbox state changes
 	let changeCheckbox = false;
-	context.subscriptions.push(view.onDidChangeCheckboxState((ev) => {
+	context.subscriptions.push(view.onDidChangeCheckboxState(async (ev) => {
 		changeCheckbox = true;
-		ev.items.forEach(([record, _]) => {
-			if (record.props) {
-				const head = record.getHead();
+		let changedValidity = false;
+		for (const [record, _] of ev.items) {
+			if (record.prop) {
+				const document = await record.prop.openTextDocument();
+				const [changed, head] = record.getHeadWithCorrection(document);
+				changedValidity = changedValidity || changed;			
 				if (record.getCheckboxState()) {
 					head.addBreakpoint();
 				} else {
 					head.removeBreakpoint();
 				}
 			}
-		})
+		}
+		if(changedValidity) provider.writeToFile();
 		changeCheckbox = false;
 	}));
 	// Update checkbox when breakpoint changes
