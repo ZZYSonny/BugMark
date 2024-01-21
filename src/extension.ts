@@ -62,7 +62,9 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 	}
 
 	updateCheckBox() {
-		const changed = this.root.forEach((x) => x.updateCheckBox());
+		const changed = this.root.forEach(
+			(x) => x.updateCheckBox()
+		);
 		if (changed) this.refresh(changed.parent);
 	}
 
@@ -86,10 +88,21 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		this.addItemWithPath(path, item);
 	}
 
-	applyEdit(document: vscode.TextDocument, changes: readonly vscode.TextDocumentContentChangeEvent[]) {
-		if (changes.length > 0) {
-			console.log(changes)
+	// Edit Ops
+	applyEdit(ev: vscode.TextDocumentChangeEvent) {
+		if (ev.contentChanges.length > 0) {
+			const changed = this.root.forEach((x)=>{
+				if(x.props){
+					return x.getHead().applyEdit(ev);
+				}
+				return false;
+			})
+			if(changed) this.writeToFile();
 		}
+	}
+
+	applyLineCheck() {
+
 	}
 }
 
@@ -111,7 +124,10 @@ export function activate(context: vscode.ExtensionContext) {
 			})
 			if (pathstr) {
 				const path = pathstr.split("/");
-				const item = new RecordItem(path.pop(), [RecordProp.getCurProp()]);
+				const item = new RecordItem(
+					path.pop(),
+					[RecordProp.fromCursor()]
+				);
 				provider.addItemWithPath(path, item);
 			} else {
 				throw "No input"
@@ -126,7 +142,7 @@ export function activate(context: vscode.ExtensionContext) {
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.item.goto", (item: RecordItem) => {
-			item.revealAndHighlight(1000);
+			item.getHead().reveal(1000);
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
@@ -154,25 +170,25 @@ export function activate(context: vscode.ExtensionContext) {
 	let changeCheckbox = false;
 	context.subscriptions.push(view.onDidChangeCheckboxState((ev) => {
 		changeCheckbox = true;
-		for (const [record, _] of ev.items)
+		ev.items.forEach(([record, _]) => {
 			if (record.props) {
+				const head = record.getHead();
 				if (record.getCheckboxState()) {
-					record.getHead().addBreakpoint();
+					head.addBreakpoint();
 				} else {
-					record.getHead().removeBreakpoint();
+					head.removeBreakpoint();
 				}
 			}
+		})
 		changeCheckbox = false;
 	}));
 	// Update checkbox when breakpoint changes
 	context.subscriptions.push(vscode.debug.onDidChangeBreakpoints((ev) => {
-		if (!changeCheckbox) {
-			provider.updateCheckBox();
-		}
+		if (!changeCheckbox) provider.updateCheckBox();
 	}));
 	// Update source location
 	vscode.workspace.onDidChangeTextDocument((ev) => {
-		provider.applyEdit(ev.document, ev.contentChanges);
+		provider.applyEdit(ev);
 	})
 }
 export function deactivate() {

@@ -3,16 +3,23 @@ import * as vscode from 'vscode';
 type RecursiveMapArray<S, T> = Array<T> | Map<S, RecursiveMapArray<S, T>>
 export type RecordJSON = RecursiveMapArray<string, RecordProp>
 
+const gotoDecoration = vscode.window.createTextEditorDecorationType({
+	borderWidth: '1px',
+	borderStyle: 'solid'
+})
+let gotoLocation = [];
+
 export class RecordProp {
 	constructor(
 		public file: string,
 		public lineno: number,
 		public content: string,
 		public commit: string,
-		public head: boolean
+		public head: boolean,
+		public deleted: boolean
 	) { }
 
-	static getCurProp(): RecordProp {
+	static fromCursor(): RecordProp {
 		const editor = vscode.window.activeTextEditor;
 		const document = editor.document;
 		const cursor = editor.selection.active;
@@ -22,8 +29,9 @@ export class RecordProp {
 			document.fileName,
 			line.lineNumber,
 			line.text,
-			"",
-			true
+			document.getText(line.range),
+			true,
+			false
 		)
 	}
 
@@ -37,7 +45,8 @@ export class RecordProp {
 			json.lineno,
 			json.content,
 			json.commit,
-			json.head
+			json.head,
+			json.deleted
 		)
 	}
 
@@ -67,13 +76,72 @@ export class RecordProp {
 		);
 		vscode.debug.removeBreakpoints([bp]);
 	}
+
+	// Ops require interacting with vscode
+	async reveal(ms: number) {
+		const doc = await vscode.workspace.openTextDocument(this.file);
+		const editor = await vscode.window.showTextDocument(doc);
+		const range = editor.document.lineAt(this.lineno).range;
+		// Select and Reveal
+		editor.selection = new vscode.Selection(range.start, range.start);
+		editor.revealRange(range);
+		// Highlight
+		gotoLocation = [range];
+		editor.setDecorations(gotoDecoration, gotoLocation);
+		// Wait ms
+		await new Promise((resolve) => setTimeout(resolve, ms));
+		// Stop highlight if current line is still highlighted
+		if (gotoLocation[0] == range) {
+			editor.setDecorations(gotoDecoration, []);
+			gotoLocation = []
+		}
+	}
+
+	// Edit Ops
+	applyEdit(ev: vscode.TextDocumentChangeEvent): boolean{
+		const document = ev.document;
+		const lineRange = new vscode.Range(
+			new vscode.Position(this.lineno, 0),
+			new vscode.Position(this.lineno, this.content.length)
+		)
+		let delta = 0;
+		let modified = false;
+		for (const change of ev.contentChanges) {
+			// Iterate all changes
+			if (change.range.contains(lineRange)) {
+				// Current line is completely removed
+				// Set deleted flag
+				// The actual lineno needs to be searched.
+				this.deleted = true;
+				break;
+			} else {
+				if (change.range.start.line < this.lineno) {
+					// Current line is shifted
+					delta -= change.range.end.line - change.range.start.line;
+					delta += change.text.split("\n").length - 1;
+				}
+				if (change.range.end.line <= this.lineno) {
+					// Current line is changed
+					modified = true;
+				}
+			}
+		}
+		if (!this.deleted) {
+			this.lineno += delta;
+			if (modified) {
+				const newLineRange = document.lineAt(this.lineno).range;
+				this.content = document.getText(newLineRange);
+			}
+		}
+		return this.deleted || delta != 0 || modified;
+	}
 }
 
 export class RecordItem extends vscode.TreeItem {
 	public parent: RecordItem | null = null;
 
 	constructor(
-		public label: string, 
+		public label: string,
 		public props: Array<RecordProp> | null = null,
 		public children: Array<RecordItem> = []
 	) {
@@ -83,7 +151,7 @@ export class RecordItem extends vscode.TreeItem {
 			title: "Goto file",
 			arguments: [this]
 		}
-		for(const child of children) child.parent = this;
+		for (const child of children) child.parent = this;
 		this.updateCheckBox();
 	}
 
@@ -145,7 +213,7 @@ export class RecordItem extends vscode.TreeItem {
 	// Node Op
 	addChildren(item: RecordItem) {
 		this.children.push(item);
-		this.children = this.children.sort((a,b)=>a.label.localeCompare(b.label))
+		this.children = this.children.sort((a, b) => a.label.localeCompare(b.label))
 	}
 
 	findDown(path: Array<string>): [number, RecordItem] {
@@ -165,8 +233,8 @@ export class RecordItem extends vscode.TreeItem {
 
 	addDown(path: Array<string>, item: RecordItem): void {
 		const rec = (i: number) => {
-			if(i<path.length) {
-				return new RecordItem(path[i], null, [rec(i+1)]);
+			if (i < path.length) {
+				return new RecordItem(path[i], null, [rec(i + 1)]);
 			} else {
 				return item;
 			}
@@ -211,35 +279,5 @@ export class RecordItem extends vscode.TreeItem {
 		if (f(this) || res.length > 1) return this;
 		// Only one child node needs updating
 		else return res[0];
-	}
-
-	// Ops require interacting with vscode
-	static gotoLocation = [];
-	static gotoDecoration = vscode.window.createTextEditorDecorationType({
-		borderWidth: '1px',
-		borderStyle: 'solid'
-	})
-	async revealAndHighlight(ms: number) {
-		const head = this.getHead();
-		const doc = await vscode.workspace.openTextDocument(head.file);
-		const editor = await vscode.window.showTextDocument(doc);
-		const range = editor.document.lineAt(head.lineno).range;
-		// Select and Reveal
-		editor.selection = new vscode.Selection(range.start, range.start);
-		editor.revealRange(range);
-		// Highlight
-		RecordItem.gotoLocation = [range];
-		editor.setDecorations(RecordItem.gotoDecoration, RecordItem.gotoLocation);
-		// Wait ms
-		await new Promise((resolve) => setTimeout(resolve, ms));
-		// Stop highlight if current line is still highlighted
-		if (RecordItem.gotoLocation[0] == range) {
-			editor.setDecorations(RecordItem.gotoDecoration, []);
-			RecordItem.gotoLocation = []
-		}
-	}
-
-	applyEdit(document: vscode.TextDocument, changes: readonly vscode.TextDocumentContentChangeEvent[]) {
-
 	}
 }
