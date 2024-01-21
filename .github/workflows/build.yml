@@ -13,13 +13,13 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Init
+    - name: NPM init
       run: npm install
   
-    - name: Build VSIX
+    - name: VSCE build
       run: npm run ci:package
 
-    - name: Upload VSIX as Artifact
+    - name: VSIX upload
       uses: actions/upload-artifact@v4.2.0
       with:
         name: vsix

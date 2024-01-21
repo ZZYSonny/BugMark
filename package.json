@@ -5,6 +5,7 @@
     "type": "git",
     "url": "https://github.com/ZZYSonny/BugMark"
   },
+  "publisher": "zzysonny",
   "description": "",
   "version": "0.0.1",
   "engines": {
@@ -87,7 +88,8 @@
   "scripts": {
     "vscode:prepublish": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external",
     "dev:watch": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external --sourcemap=inline --watch",
-    "ci:package": "vsce package --out bugmark.vsix"
+    "ci:package": "vsce package --out bugmark.vsix",
+    "ci:publish": "vsce publish --pat $BUGMARK_PAT"
   },
   "devDependencies": {
     "@types/node": "18.x",
