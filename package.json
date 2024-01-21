@@ -85,7 +85,7 @@
   "scripts": {
     "vscode:prepublish": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external",
     "dev:watch": "esbuild src/extension.ts --outdir=out --bundle --platform=node --packages=external --sourcemap=inline --watch",
-    "ci:package": "vsce package"
+    "ci:package": "vsce package --out build/bugmark.vsix"
   },
   "devDependencies": {
     "@types/node": "18.x",
