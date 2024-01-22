@@ -176,7 +176,7 @@ export class RecordProp implements IRecordProp {
 	}
 
 	fixLineNumber(document: vscode.TextDocument) {
-		let radius = vscode.workspace.getConfiguration().get("bugmark.searchRadius") as number;
+		let radius = vscode.workspace.getConfiguration("bugmark").get("searchRadius") as number;
 		let bestLine = this.lineno;
 		let bestScore = this.content.length;
 		for (let i = 0; i < radius; i++) {

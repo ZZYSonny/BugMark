@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import { RecordItem, RecordProp } from './record';
 
 export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> {
@@ -27,32 +26,13 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 
 	// Load / Store Ops
 	loadFromFile(): void {
-		const fileURI = vscode.Uri.joinPath(
-			vscode.workspace.workspaceFolders[0].uri,
-			".vscode", "bugmark.json"
-		);
-		if (!fs.existsSync(fileURI.fsPath)) {
-			this.writeToFile({});
-		}
-		const buffer = fs.readFileSync(fileURI.fsPath);
-		const json = JSON.parse(buffer.toString());
+		const json = vscode.workspace.getConfiguration("bugmark").get("bookmarks") as any;
 		this.root = RecordItem.deserialize("", json);
 	}
 
-	writeToFile(data: Object | null = null): void {
-		const folderURI = vscode.Uri.joinPath(
-			vscode.workspace.workspaceFolders[0].uri,
-			".vscode"
-		);
-		const fileURI = vscode.Uri.joinPath(
-			folderURI,
-			"bugmark.json"
-		);
-		if (!data) data = this.root.serialize();
-		if (!fs.existsSync(folderURI.path)) {
-			fs.mkdirSync(folderURI.path, { recursive: true });
-		}
-		fs.writeFileSync(fileURI.fsPath, JSON.stringify(data, null, 4));
+	writeToFile(): void {
+		const json = this.root.serialize();
+		vscode.workspace.getConfiguration("bugmark").update("bookmarks", json)
 	}
 
 	// Command related ops.

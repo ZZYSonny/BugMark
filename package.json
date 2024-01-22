@@ -91,7 +91,14 @@
           "bugmark.searchRadius": {
             "type": "number",
             "default": 10,
-            "description": "Search radius if content on the bookmarked line does not match."
+            "description": "Search radius if content on the bookmarked line does not match.",
+            "scope": "resource"
+          },
+          "bugmark.bookmarks": {
+            "type": "object",
+            "default": {},
+            "description": "Bookmarks",
+            "scope": "window"
           }
         }
       }
