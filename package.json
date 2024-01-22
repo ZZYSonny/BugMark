@@ -7,7 +7,7 @@
   },
   "publisher": "zzysonny",
   "description": "",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -60,7 +60,7 @@
     "commands": [
       {
         "command": "bugmark.command.markline",
-        "title": "BugMark: bookmark current line",
+        "title": "BugMark: Mark current line",
         "icon": "$(check-all)"
       },
       {
