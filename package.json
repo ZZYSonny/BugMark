@@ -7,7 +7,7 @@
   },
   "publisher": "zzysonny",
   "description": "",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -39,9 +39,14 @@
     "menus": {
       "view/title": [
         {
-          "command": "bugmark.view.title.reload",
+          "command": "bugmark.view.title.edit",
           "when": "view == bugmark.view.bookmarks",
           "group": "navigation@0"
+        },
+        {
+          "command": "bugmark.view.title.reload",
+          "when": "view == bugmark.view.bookmarks",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -62,6 +67,11 @@
         "command": "bugmark.command.markline",
         "title": "BugMark: Mark current line",
         "icon": "$(check-all)"
+      },
+      {
+        "command": "bugmark.view.title.edit",
+        "title": "BugMark: Edit bookmarks (JSON)",
+        "icon": "$(pencil)"
       },
       {
         "command": "bugmark.view.title.reload",

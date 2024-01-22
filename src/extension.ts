@@ -121,6 +121,17 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
+		"bugmark.view.title.edit", () => {
+			vscode.commands.executeCommand(
+				'workbench.action.openWorkspaceSettingsFile', {
+				revealSetting: {
+					key: 'bugmark.bookmarks', 
+					edit: true
+				}
+			});
+		}
+	))
+	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.title.reload", () => {
 			provider.loadFromFile();
 			provider.refresh(null)
