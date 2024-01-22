@@ -83,6 +83,18 @@
         "title": "Remove",
         "icon": "$(close)"
       }
+    ],
+    "configuration":[
+      {
+        "title": "BugMark",
+        "properties": {
+          "bugmark.searchRadius": {
+            "type": "number",
+            "default": 10,
+            "description": "Search radius if content on the bookmarked line does not match."
+          }
+        }
+      }
     ]
   },
   "scripts": {

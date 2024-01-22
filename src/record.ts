@@ -175,10 +175,11 @@ export class RecordProp implements IRecordProp {
 		}
 	}
 
-	adjustLineNo(document: vscode.TextDocument) {
+	fixLineNumber(document: vscode.TextDocument) {
+		let radius = vscode.workspace.getConfiguration().get("bugmark.searchRadius") as number;
 		let bestLine = this.lineno;
 		let bestScore = this.content.length;
-		for (let i = 0; i < 10; i++) {
+		for (let i = 0; i < radius; i++) {
 			for (const pid of [this.lineno + i, this.lineno - i]) {
 				if (pid >= 0 && pid < document.lineCount) {
 					const line = document.lineAt(pid).text;
@@ -252,7 +253,7 @@ export class RecordItem extends vscode.TreeItem {
 		const head = this.prop;
 		head.checkValidity(document);
 		if (head.deleted) {
-			const changed = head.adjustLineNo(document);
+			const changed = head.fixLineNumber(document);
 			return [changed, head];
 		}
 		return [false, head];
