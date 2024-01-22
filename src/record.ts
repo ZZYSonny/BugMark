@@ -13,6 +13,9 @@ interface IRecordProp {
 	content: string,
 	deleted: boolean
 }
+interface IRecordPropTree {
+	[key:string]: IRecordProp | IRecordPropTree
+}
 
 export class RecordProp implements IRecordProp {
 	constructor(
@@ -40,13 +43,13 @@ export class RecordProp implements IRecordProp {
 		return this;
 	}
 
-	static isProp(json: any) {
+	static isProp(json: IRecordProp | IRecordPropTree) {
 		const requiredKeys = ["file", "lineno", "content", "deleted"];
 		const keys = Object.keys(json);
 		return keys.length === requiredKeys.length && requiredKeys.every(k => keys.includes(k));
 	}
 
-	static deserialize(json: any) {
+	static deserialize(json: IRecordProp) {
 		return new RecordProp(
 			json.file,
 			json.lineno,
@@ -216,7 +219,7 @@ export class RecordItem extends vscode.TreeItem {
 	}
 
 	//Export and Import
-	serialize() {
+	serialize(): IRecordProp | IRecordPropTree {
 		if (this.prop) {
 			return this.prop.serialize();
 		} else {
@@ -226,9 +229,9 @@ export class RecordItem extends vscode.TreeItem {
 		}
 	}
 
-	static deserialize(name: string, json: any) {
+	static deserialize(name: string, json: RecordProp | IRecordPropTree) {
 		if (RecordProp.isProp(json)) {
-			const props = RecordProp.deserialize(json);
+			const props = RecordProp.deserialize(json as RecordProp);
 			return new RecordItem(name, props);
 		}
 		if (json instanceof Object) {
@@ -277,6 +280,7 @@ export class RecordItem extends vscode.TreeItem {
 	addChildren(item: RecordItem) {
 		this.children.push(item);
 		this.children = this.children.sort((a, b) => a.label.localeCompare(b.label))
+		item.parent = this;
 	}
 
 	findDown(path: Array<string>): [number, RecordItem] {
