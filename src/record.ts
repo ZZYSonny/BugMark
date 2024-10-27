@@ -26,16 +26,16 @@ function encodePath(pathstr: string): string {
 	}
 }
 
-function decodePath(pathstr: string): string {
+function decodePath(pathstr: string): vscode.Uri {
 	const relative = vscode.workspace.getConfiguration("bugmark").get("relative") as boolean;
 	if (relative) {
 		const folder = vscode.workspace.workspaceFolders.find(
 			f => pathstr.startsWith(f.name)
 		);
 		if (!folder) throw "No Workspace Folder found";
-		return vscode.Uri.joinPath(folder.uri, pathstr.substring(folder.name.length)).path;
+		return vscode.Uri.joinPath(folder.uri, pathstr.substring(folder.name.length));
 	} else {
-		return pathstr;
+		return vscode.Uri.file(pathstr);
 	}
 }
 
