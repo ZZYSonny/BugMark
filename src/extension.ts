@@ -125,7 +125,7 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.commands.executeCommand(
 				'workbench.action.openWorkspaceSettingsFile', {
 				revealSetting: {
-					key: 'bugmark.bookmarks', 
+					key: 'bugmark.bookmarks',
 					edit: true
 				}
 			});

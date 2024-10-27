@@ -14,7 +14,7 @@ interface IRecordProp {
 	deleted: boolean
 }
 interface IRecordPropTree {
-	[key:string]: IRecordProp | IRecordPropTree
+	[key: string]: IRecordProp | IRecordPropTree
 }
 
 export class RecordProp implements IRecordProp {
@@ -129,7 +129,7 @@ export class RecordProp implements IRecordProp {
 				const editBeforeLine = change.range.start.line < this.lineno;
 				const prependEnter = change.range.start.line === this.lineno && change.range.end.line === this.lineno && change.range.end.character === 0
 				console.log(this.content, editBeforeLine, prependEnter);
-				if ( editBeforeLine || prependEnter) {
+				if (editBeforeLine || prependEnter) {
 					// Current line is shifted
 					delta -= change.range.end.line - change.range.start.line;
 					delta += change.text.split("\n").length - 1;
@@ -153,8 +153,8 @@ export class RecordProp implements IRecordProp {
 	}
 
 	applyRename(ev: vscode.FileRenameEvent): boolean {
-		for(const pair of ev.files){
-			if(this.file === pair.oldUri.path) {
+		for (const pair of ev.files) {
+			if (this.file === pair.oldUri.path) {
 				this.file = pair.newUri.path;
 				return true;
 			}
@@ -346,7 +346,7 @@ export class RecordItem extends vscode.TreeItem {
 		// If current node or multiple children node needs updating
 		if (f(this) || res.length > 1) return this;
 		// Only one child node needs updating
-		else if(res.length == 1) return res[0];
+		else if (res.length == 1) return res[0];
 		else return null;
 	}
 }
