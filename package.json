@@ -94,7 +94,7 @@
         "icon": "$(close)"
       }
     ],
-    "configuration":[
+    "configuration": [
       {
         "title": "BugMark",
         "properties": {
@@ -102,6 +102,12 @@
             "type": "number",
             "default": 30,
             "description": "Search radius if content on the bookmarked line does not match.",
+            "scope": "resource"
+          },
+          "bugmark.relative": {
+            "type": "boolean",
+            "default": false,
+            "description": "Use Relative Path",
             "scope": "resource"
           },
           "bugmark.bookmarks": {

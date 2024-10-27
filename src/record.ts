@@ -17,6 +17,28 @@ interface IRecordPropTree {
 	[key: string]: IRecordProp | IRecordPropTree
 }
 
+function encodePath(pathstr: string): string {
+	const relative = vscode.workspace.getConfiguration("bugmark").get("relative") as boolean;
+	if (relative) {
+		return vscode.workspace.asRelativePath(pathstr, true);
+	} else {
+		return pathstr;
+	}
+}
+
+function decodePath(pathstr: string): string {
+	const relative = vscode.workspace.getConfiguration("bugmark").get("relative") as boolean;
+	if (relative) {
+		const folder = vscode.workspace.workspaceFolders.find(
+			f => pathstr.startsWith(f.name)
+		);
+		if (!folder) throw "No Workspace Folder found";
+		return vscode.Uri.joinPath(folder.uri, pathstr.substring(folder.name.length)).path;
+	} else {
+		return pathstr;
+	}
+}
+
 export class RecordProp implements IRecordProp {
 	constructor(
 		public file: string,
@@ -32,7 +54,7 @@ export class RecordProp implements IRecordProp {
 		const line = document.lineAt(cursor);
 
 		return new RecordProp(
-			document.fileName,
+			encodePath(document.fileName),
 			line.lineNumber,
 			line.text,
 			false
@@ -87,7 +109,7 @@ export class RecordProp implements IRecordProp {
 
 	// Ops require interacting with vscode
 	async openTextDocument() {
-		return await vscode.workspace.openTextDocument(this.file);
+		return await vscode.workspace.openTextDocument(decodePath(this.file));
 	}
 
 	async reveal(doc: vscode.TextDocument, ms: number) {
