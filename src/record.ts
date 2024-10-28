@@ -32,7 +32,9 @@ function decodePath(pathstr: string): vscode.Uri {
 		const folder = vscode.workspace.workspaceFolders.find(
 			f => pathstr.startsWith(f.name)
 		);
-		if (!folder) throw "No Workspace Folder found";
+		if (!folder) {
+			return vscode.Uri.file(pathstr);
+		}
 		return vscode.Uri.joinPath(folder.uri, pathstr.substring(folder.name.length));
 	} else {
 		return vscode.Uri.file(pathstr);
@@ -85,7 +87,7 @@ export class RecordProp implements IRecordProp {
 		// Match some breakpoint?
 		return (
 			(bp instanceof vscode.SourceBreakpoint) &&
-			(bp.location.uri.path === this.file) &&
+			(bp.location.uri.path === decodePath(this.file).path) &&
 			(bp.location.range.start.line === this.lineno)
 		);
 	}
@@ -93,7 +95,7 @@ export class RecordProp implements IRecordProp {
 	addBreakpoint(): void {
 		const bp = new vscode.SourceBreakpoint(
 			new vscode.Location(
-				vscode.Uri.file(this.file),
+				decodePath(this.file),
 				new vscode.Position(this.lineno, 0)
 			)
 		);
@@ -176,8 +178,8 @@ export class RecordProp implements IRecordProp {
 
 	applyRename(ev: vscode.FileRenameEvent): boolean {
 		for (const pair of ev.files) {
-			if (this.file === pair.oldUri.path) {
-				this.file = pair.newUri.path;
+			if (this.file === encodePath(pair.oldUri.path)) {
+				this.file = encodePath(pair.newUri.path);
 				return true;
 			}
 		}
