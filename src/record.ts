@@ -81,7 +81,7 @@ export class RecordProp implements IRecordProp {
 	static isProp(json: IRecordProp | IRecordPropTree) {
 		const requiredKeys = ["file", "lineno", "content", "deleted"];
 		const keys = Object.keys(json);
-		return keys.length === requiredKeys.length && requiredKeys.every(k => keys.includes(k));
+		return requiredKeys.every(k => keys.includes(k))
 	}
 
 	static deserialize(json: IRecordProp) {
