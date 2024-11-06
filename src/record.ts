@@ -143,11 +143,23 @@ export class RecordProp implements IRecordProp {
 		}
 	}
 
-	checkValidity(document: vscode.TextDocument) {
+	async fixFileLocation() {
+		const repo = gitAPI.getRepository(decodePath(this.file));
+		const curURI = decodePath(this.file);
+		if (repo) {
+			const changes = await repo.diffIndexWith(this.githash);
+			for (const change of changes) {
+				if (change.status == 3 && change.originalUri.fsPath == curURI.fsPath) {
+					this.file = encodePath(change.renameUri.fsPath);
+					return true;
+				}
+			}
+		}
 		return false;
 	}
 
-	async fixLineNumber(document: vscode.TextDocument) {
+	async fixLineNumber() {
+		const document = await this.openTextDocument();
 		let radius = vscode.workspace.getConfiguration("bugmark").get("searchRadius") as number;
 		let lineno = this.lineno;
 
@@ -266,21 +278,20 @@ export class RecordItem extends vscode.TreeItem {
 		return this.children.findIndex((x) => x.label === name);
 	}
 
-	async getHeadWithCorrection(document: vscode.TextDocument): Promise<[boolean, RecordProp]> {
+	async getAdaptedProp(): Promise<RecordProp> {
 		const head = this.prop;
-		if (!head.checkValidity(document)) {
-			const changed = await head.fixLineNumber(document);
-			return [changed, head];
-		}
-		return [false, head];
+		let changed = false;
+		changed ||= await head.fixFileLocation();
+		changed ||= await head.fixLineNumber();
+		return head;
 	}
 
-	getFullPath() {
+	getTreePath() {
 		// Get the path from root node to this.
 		if (this.parent.parent == null) {
 			return this.label.toString();
 		} else {
-			return this.parent.getFullPath() + "/" + this.label.toString();
+			return this.parent.getTreePath() + "/" + this.label.toString();
 		}
 	}
 

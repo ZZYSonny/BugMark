@@ -117,16 +117,16 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.item.goto", async (item: RecordItem) => {
 			if (item.prop) {
-				const document = await item.prop.openTextDocument();
-				const [changed, head] = await item.getHeadWithCorrection(document);
-				await head.reveal(document, 1000);
-				if (changed) provider.writeToFile();
+				const prop = await item.getAdaptedProp();
+				const document = await prop.openTextDocument();
+				await prop.reveal(document, 1000);
+				provider.writeToFile();
 			}
 		}
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.item.rename", async (item: RecordItem) => {
-			const oldname = item.getFullPath();
+			const oldname = item.getTreePath();
 			const pathstr = await vscode.window.showInputBox({
 				title: "New Bookmark Name?",
 				prompt: "Split with /",
@@ -149,20 +149,17 @@ export function activate(context: vscode.ExtensionContext) {
 	let changeCheckbox = false;
 	context.subscriptions.push(view.onDidChangeCheckboxState(async (ev) => {
 		changeCheckbox = true;
-		let changedValidity = false;
 		for (const [record, _] of ev.items) {
 			if (record.prop) {
-				const document = await record.prop.openTextDocument();
-				const [changed, head] = await record.getHeadWithCorrection(document);
-				changedValidity = changedValidity || changed;
+				const prop = await record.getAdaptedProp();
 				if (record.getCheckboxState()) {
-					head.addBreakpoint();
+					prop.addBreakpoint();
 				} else {
-					head.removeBreakpoint();
+					prop.removeBreakpoint();
 				}
 			}
 		}
-		if (changedValidity) provider.writeToFile();
+		provider.writeToFile();
 		changeCheckbox = false;
 	}));
 	// Update checkbox when breakpoint changes
