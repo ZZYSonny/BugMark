@@ -7,7 +7,7 @@
   },
   "publisher": "zzysonny",
   "description": "",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -133,6 +133,9 @@
     "esbuild": "^0.19.11",
     "typescript": "^5.3.3"
   },
+  "extensionDependencies": [
+    "vscode.git"
+  ],
   "dependencies": {
     "fastest-levenshtein": "^1.0.16"
   }

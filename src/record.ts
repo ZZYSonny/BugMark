@@ -1,5 +1,9 @@
 import * as vscode from 'vscode';
 import { distance } from 'fastest-levenshtein';
+import { GitExtension } from './git';
+
+const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
+const gitAPI = gitExtension.exports.getAPI(1);
 
 const gotoDecoration = vscode.window.createTextEditorDecorationType({
 	borderWidth: '1px',
@@ -12,6 +16,7 @@ interface IRecordProp {
 	lineno: number,
 	content: string,
 	deleted: boolean
+	githash: string | undefined | null
 }
 interface IRecordPropTree {
 	[key: string]: IRecordProp | IRecordPropTree
@@ -46,20 +51,26 @@ export class RecordProp implements IRecordProp {
 		public file: string,
 		public lineno: number,
 		public content: string,
-		public deleted: boolean
+		public deleted: boolean,
+		public githash: string | undefined | null
 	) { }
 
-	static fromCursor(): RecordProp {
+	static async fromCursor() {
 		const editor = vscode.window.activeTextEditor;
 		const document = editor.document;
 		const cursor = editor.selection.active;
 		const line = document.lineAt(cursor);
 
+		const repo = gitAPI.getRepository(document.uri);
+		const commit = await repo?.getCommit("HEAD");
+		const hash = commit?.hash;
+
 		return new RecordProp(
 			encodePath(document.fileName),
 			line.lineNumber,
 			line.text,
-			false
+			false,
+			hash
 		)
 	}
 
@@ -78,7 +89,8 @@ export class RecordProp implements IRecordProp {
 			json.file,
 			json.lineno,
 			json.content,
-			json.deleted
+			json.deleted,
+			json.githash
 		)
 	}
 

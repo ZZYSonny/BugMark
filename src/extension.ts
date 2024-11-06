@@ -112,7 +112,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const path = pathstr.split("/");
 				const item = new RecordItem(
 					path.pop(),
-					RecordProp.fromCursor()
+					await RecordProp.fromCursor()
 				);
 				provider.addItemWithPath(path, item);
 			} else {
