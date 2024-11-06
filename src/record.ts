@@ -15,7 +15,6 @@ interface IRecordProp {
 	file: string,
 	lineno: number,
 	content: string,
-	deleted: boolean
 	githash: string | undefined | null
 }
 interface IRecordPropTree {
@@ -51,7 +50,6 @@ export class RecordProp implements IRecordProp {
 		public file: string,
 		public lineno: number,
 		public content: string,
-		public deleted: boolean,
 		public githash: string | undefined | null
 	) { }
 
@@ -61,15 +59,17 @@ export class RecordProp implements IRecordProp {
 		const cursor = editor.selection.active;
 		const line = document.lineAt(cursor);
 
-		const repo = gitAPI.getRepository(document.uri);
-		const commit = await repo?.getCommit("HEAD");
-		const hash = commit?.hash;
+		let hash = undefined;
+		const repo = gitAPI.getRepository(document.uri)
+		if (repo) {
+			const commit = await repo.getCommit("HEAD");
+			hash = commit.hash;
+		}
 
 		return new RecordProp(
 			encodePath(document.fileName),
 			line.lineNumber,
 			line.text,
-			false,
 			hash
 		)
 	}
@@ -79,7 +79,7 @@ export class RecordProp implements IRecordProp {
 	}
 
 	static isProp(json: IRecordProp | IRecordPropTree) {
-		const requiredKeys = ["file", "lineno", "content", "deleted"];
+		const requiredKeys = ["file", "lineno", "content"];
 		const keys = Object.keys(json);
 		return requiredKeys.every(k => keys.includes(k))
 	}
@@ -89,7 +89,6 @@ export class RecordProp implements IRecordProp {
 			json.file,
 			json.lineno,
 			json.content,
-			json.deleted,
 			json.githash
 		)
 	}
@@ -144,79 +143,58 @@ export class RecordProp implements IRecordProp {
 		}
 	}
 
-	// Edit Ops
-	applyEdit(ev: vscode.TextDocumentChangeEvent): boolean {
-		const document = ev.document;
-		const lineRange = new vscode.Range(
-			new vscode.Position(this.lineno, 0),
-			new vscode.Position(this.lineno, this.content.length)
-		)
-		let delta = 0;
-		let modified = false;
-		for (const change of ev.contentChanges) {
-			// Iterate all changes
-			if (change.range.contains(lineRange)) {
-				// Current line is completely removed
-				// Set deleted flag
-				// The actual lineno needs to be searched.
-				this.deleted = true;
-				break;
-			} else {
-				const editBeforeLine = change.range.start.line < this.lineno;
-				const prependEnter = change.range.start.line === this.lineno && change.range.end.line === this.lineno && change.range.end.character === 0
-				console.log(this.content, editBeforeLine, prependEnter);
-				if (editBeforeLine || prependEnter) {
-					// Current line is shifted
-					delta -= change.range.end.line - change.range.start.line;
-					delta += change.text.split("\n").length - 1;
-				}
-				const modifiedLineStart = change.range.end.line <= this.lineno;
-				const modifiedLineOrLineEnd = change.range.start.line >= this.lineno;
-				if (modifiedLineStart || modifiedLineOrLineEnd) {
-					// Current line is changed
-					modified = true;
-				}
-			}
-		}
-		if (!this.deleted) {
-			this.lineno += delta;
-			if (modified) {
-				const newLineRange = document.lineAt(this.lineno).range;
-				this.content = document.getText(newLineRange);
-			}
-		}
-		return this.deleted || delta != 0 || modified;
-	}
-
-	applyRename(ev: vscode.FileRenameEvent): boolean {
-		for (const pair of ev.files) {
-			if (this.file === encodePath(pair.oldUri.path)) {
-				this.file = encodePath(pair.newUri.path);
-				return true;
-			}
-		}
+	checkValidity(document: vscode.TextDocument) {
 		return false;
 	}
 
-	checkValidity(document: vscode.TextDocument) {
-		if (!this.deleted) {
-			let newContent = "";
-			try {
-				newContent = document.lineAt(this.lineno).text;
-			} catch {
-				this.deleted = true;
-				return;
-			}
-			this.deleted = this.content != newContent;
-		}
-	}
-
-	fixLineNumber(document: vscode.TextDocument) {
+	async fixLineNumber(document: vscode.TextDocument) {
 		let radius = vscode.workspace.getConfiguration("bugmark").get("searchRadius") as number;
-		let bestLine = this.lineno;
+		let lineno = this.lineno;
+
+		const repo = gitAPI.getRepository(document.uri);
+		if (repo && this.githash) {
+			const diff = await repo.diffBetween(this.githash, "HEAD", document.uri.fsPath);
+			const difflines = diff.split("\n");
+			for (let i = 0; i < difflines.length; i++) {
+				const hunkHeaderMatch = /^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@/.exec(difflines[i]);
+				if (hunkHeaderMatch) {
+					const startA = parseInt(hunkHeaderMatch[1]);
+					const countA = parseInt(hunkHeaderMatch[2] || '1');
+					const startB = parseInt(hunkHeaderMatch[3]);
+					const countB = parseInt(hunkHeaderMatch[4] || '1');
+
+					if (lineno < startA) {
+						// Original line is before this hunk, no more adjustments needed
+						break;
+					}
+					else if (lineno >= startA && lineno < startA + countA) {
+						// The original line was changed in this hunk, trace the changes
+						let cnt = lineno - startA + 1;
+						lineno = startB - 1;
+						for (let j = i + 1; cnt != 0; j++) {
+							if (difflines[j].startsWith("+")) {
+								// New Line Added
+								lineno++;
+							} else if (difflines[j].startsWith("-")) {
+								cnt--;
+							} else {
+								lineno++;
+								cnt--;
+							}
+						}
+						break;
+					} else {
+						// Adjust line for lines added/removed before this line
+						lineno += (countB - countA);
+					}
+				}
+			}
+		}
+
+		let bestLine = lineno;
 		let bestScore = this.content.length;
 		for (let i = 0; i < radius; i++) {
-			for (const pid of [this.lineno + i, this.lineno - i]) {
+			for (const pid of [lineno + i, lineno - i]) {
 				if (pid >= 0 && pid < document.lineCount) {
 					const line = document.lineAt(pid).text;
 					const score = distance(this.content, line);
@@ -230,7 +208,10 @@ export class RecordProp implements IRecordProp {
 		if (bestScore < this.content.length) {
 			this.lineno = bestLine;
 			this.content = document.lineAt(this.lineno).text;
-			this.deleted = false;
+			if (repo) {
+				const commit = await repo.getCommit("HEAD");
+				this.githash = commit.hash;
+			}
 			return true;
 		}
 		return false;
@@ -285,11 +266,10 @@ export class RecordItem extends vscode.TreeItem {
 		return this.children.findIndex((x) => x.label === name);
 	}
 
-	getHeadWithCorrection(document: vscode.TextDocument): [boolean, RecordProp] {
+	async getHeadWithCorrection(document: vscode.TextDocument): Promise<[boolean, RecordProp]> {
 		const head = this.prop;
-		head.checkValidity(document);
-		if (head.deleted) {
-			const changed = head.fixLineNumber(document);
+		if (!head.checkValidity(document)) {
+			const changed = await head.fixLineNumber(document);
 			return [changed, head];
 		}
 		return [false, head];

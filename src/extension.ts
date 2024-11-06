@@ -67,29 +67,6 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		this.removeItem(item);
 		this.addItemWithPath(path, item);
 	}
-
-	// Edit Ops
-	applyEdit(ev: vscode.TextDocumentChangeEvent) {
-		if (ev.contentChanges.length > 0) {
-			const changed = this.root.forEach((x) => {
-				if (x.prop && x.prop.file === ev.document.uri.path) {
-					return x.prop.applyEdit(ev);
-				}
-				return false;
-			})
-			if (changed) this.writeToFile();
-		}
-	}
-
-	applyRename(ev: vscode.FileRenameEvent) {
-		const changed = this.root.forEach((x) => {
-			if (x.prop) {
-				return x.prop.applyRename(ev);
-			}
-			return false;
-		})
-		if (changed) this.writeToFile();
-	}
 }
 
 let provider = new BugMarkTreeProvider();
@@ -141,7 +118,7 @@ export function activate(context: vscode.ExtensionContext) {
 		"bugmark.view.item.goto", async (item: RecordItem) => {
 			if (item.prop) {
 				const document = await item.prop.openTextDocument();
-				const [changed, head] = item.getHeadWithCorrection(document);
+				const [changed, head] = await item.getHeadWithCorrection(document);
 				await head.reveal(document, 1000);
 				if (changed) provider.writeToFile();
 			}
@@ -176,7 +153,7 @@ export function activate(context: vscode.ExtensionContext) {
 		for (const [record, _] of ev.items) {
 			if (record.prop) {
 				const document = await record.prop.openTextDocument();
-				const [changed, head] = record.getHeadWithCorrection(document);
+				const [changed, head] = await record.getHeadWithCorrection(document);
 				changedValidity = changedValidity || changed;
 				if (record.getCheckboxState()) {
 					head.addBreakpoint();
@@ -192,13 +169,6 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.debug.onDidChangeBreakpoints((ev) => {
 		if (!changeCheckbox) provider.updateCheckBox();
 	}));
-	// Update source location
-	vscode.workspace.onDidChangeTextDocument((ev) => {
-		provider.applyEdit(ev);
-	})
-	vscode.workspace.onDidRenameFiles((ev) => {
-		provider.applyRename(ev);
-	})
 }
 export function deactivate() {
 	provider = null;
