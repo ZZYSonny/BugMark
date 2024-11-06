@@ -29,6 +29,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 	loadFromFile(): void {
 		const json = vscode.workspace.getConfiguration("bugmark").get("bookmarks") as any;
 		this.root = RecordItem.deserialize("", json);
+		this.updateCheckBox();
 	}
 
 	writeToFile(): void {
@@ -46,7 +47,7 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		const changed = await this.root.forEach(
 			(x) => x.updateCheckBox()
 		);
-		if (changed) this.refresh(changed.parent);
+		this.refresh(this.root);
 	}
 
 	addItemWithPath(path: Array<string>, item: RecordItem) {
@@ -164,6 +165,25 @@ export async function activate(context: vscode.ExtensionContext) {
 	))
 	// Change breakpoint when checkbox state changes
 	let changeCheckbox = false;
+	context.subscriptions.push(view.onDidChangeCheckboxState(async (ev) => {
+		changeCheckbox = true;
+		for (const [record, _] of ev.items) {
+			if (record.prop) {
+				const prop = await record.getAdaptedProp();
+				if (record.getCheckboxState()) {
+					prop.addBreakpoint();
+				} else {
+					prop.removeBreakpoint();
+				}
+			}
+		}
+		provider.writeToFile();
+		changeCheckbox = false;
+	}));
+	// Update checkbox when breakpoint changes
+	context.subscriptions.push(vscode.debug.onDidChangeBreakpoints((ev) => {
+		if (!changeCheckbox) provider.updateCheckBox();
+	}));
 }
 export function deactivate() {
 	provider = null;

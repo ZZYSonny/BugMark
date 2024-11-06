@@ -273,7 +273,6 @@ export class RecordItem extends vscode.TreeItem {
 			arguments: [this]
 		}
 		for (const child of children) child.parent = this;
-		this.updateCheckBox();
 	}
 
 	//Export and Import
@@ -328,7 +327,9 @@ export class RecordItem extends vscode.TreeItem {
 
 	getCheckboxState() {
 		// Is this ticked?
-		if (this.checkboxState instanceof Object) {
+		if (this.checkboxState === undefined) {
+			return false;
+		} else if (this.checkboxState instanceof Object) {
 			return this.checkboxState.state === vscode.TreeItemCheckboxState.Checked;
 		} else {
 			return this.checkboxState === vscode.TreeItemCheckboxState.Checked;
