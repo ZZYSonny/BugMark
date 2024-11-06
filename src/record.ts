@@ -345,14 +345,15 @@ export class RecordItem extends vscode.TreeItem {
 	}
 
 	// Updater
-	updateCheckBox() {
+	async updateCheckBox() {
 		const oldState = this.getCheckboxState();
 		let newState = false;
 		if (this.prop) {
 			// Current node is a leaf node representing some source location
 			// Tick if the line is already a breakpoint
+			const prop = await this.getAdaptedProp();
 			newState = vscode.debug.breakpoints.some(
-				(bp) => this.prop.matchBreakpoint(bp)
+				(bp) => prop.matchBreakpoint(bp)
 			);
 		} if (this.children.length > 0) {
 			// Current node is a tree node
@@ -366,10 +367,11 @@ export class RecordItem extends vscode.TreeItem {
 		return oldState != newState;
 	}
 
-	forEach(f: (x: RecordItem) => boolean): RecordItem | null {
+	async forEach(f: (x: RecordItem) => Promise<boolean>): Promise<RecordItem | null> {
 		// Perform forEach for all children nodes
 		// And return the LCA of all changed nodes.
-		const res = this.children.map((x) => x.forEach(f)).filter(x => x);
+		const childs = await Promise.all(this.children.map(x => x.forEach(f)));
+		const res = childs.filter(x => x);
 		// If current node or multiple children node needs updating
 		if (f(this) || res.length > 1) return this;
 		// Only one child node needs updating

@@ -41,8 +41,8 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 		this.emitterOnDidChangeTreeData.fire(node);
 	}
 
-	updateCheckBox() {
-		const changed = this.root.forEach(
+	async updateCheckBox() {
+		const changed = await this.root.forEach(
 			(x) => x.updateCheckBox()
 		);
 		if (changed) this.refresh(changed.parent);
