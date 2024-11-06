@@ -3,7 +3,6 @@ import { distance } from 'fastest-levenshtein';
 import { GitExtension } from './git';
 
 const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
-const gitAPI = gitExtension.exports.getAPI(1);
 
 const gotoDecoration = vscode.window.createTextEditorDecorationType({
 	borderWidth: '1px',
@@ -60,6 +59,8 @@ export class RecordProp implements IRecordProp {
 		const line = document.lineAt(cursor);
 
 		let hash = undefined;
+		const gitActivated = await gitExtension.activate();
+		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(document.uri)
 		if (repo) {
 			const commit = await repo.getCommit("HEAD");
@@ -144,6 +145,8 @@ export class RecordProp implements IRecordProp {
 	}
 
 	async shouldUpdate() {
+		const gitActivated = await gitExtension.activate();
+		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(decodePath(this.file));
 		if (!repo) {
 			// Always allow in-place update if no repo is found.
@@ -165,9 +168,11 @@ export class RecordProp implements IRecordProp {
 	}
 
 	async fixFileLocation() {
+		const gitActivated = await gitExtension.activate();
+		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(decodePath(this.file));
-		const curURI = decodePath(this.file);
 		if (repo) {
+			const curURI = decodePath(this.file);
 			const changes = await repo.diffIndexWith(this.githash);
 			for (const change of changes) {
 				if (change.status == 3 && change.originalUri.fsPath == curURI.fsPath) {
@@ -184,6 +189,8 @@ export class RecordProp implements IRecordProp {
 		const radius = vscode.workspace.getConfiguration("bugmark").get("searchRadius") as number;
 		let lineno = this.lineno;
 
+		const gitActivated = await gitExtension.activate();
+		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(document.uri);
 		if (repo && this.githash) {
 			const diff = await repo.diffBetween(this.githash, "HEAD", document.uri.fsPath);
@@ -379,7 +386,8 @@ export class RecordItem extends vscode.TreeItem {
 			newState = vscode.debug.breakpoints.some(
 				(bp) => prop.matchBreakpoint(bp)
 			);
-		} if (this.children.length > 0) {
+		}
+		if (this.children.length > 0) {
 			// Current node is a tree node
 			// Tick if all children nodes are ticked.
 			newState = this.children.every((c) => c.getCheckboxState());

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { RecordItem, RecordProp } from './record';
+import { GitExtension } from './git';
 
 export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> {
 	private emitterOnDidChangeTreeData = new vscode.EventEmitter<RecordItem>();
@@ -71,7 +72,23 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 
 let provider = new BugMarkTreeProvider();
 
-export function activate(context: vscode.ExtensionContext) {
+function waitGitInitialize() {
+	return new Promise<void>(async (resolve, reject) => {
+		const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
+		const gitActivated = await gitExtension.activate();
+		const gitAPI = gitActivated.getAPI(1);
+
+		if (gitAPI.state == "initialized") resolve();
+		else {
+			gitAPI.onDidChangeState((ev) => {
+				if (ev == "initialized") resolve();
+			})
+		}
+	})
+}
+
+export async function activate(context: vscode.ExtensionContext) {
+	await waitGitInitialize();
 	// Register view
 	let view = vscode.window.createTreeView(
 		"bugmark.view.bookmarks",
@@ -147,25 +164,6 @@ export function activate(context: vscode.ExtensionContext) {
 	))
 	// Change breakpoint when checkbox state changes
 	let changeCheckbox = false;
-	context.subscriptions.push(view.onDidChangeCheckboxState(async (ev) => {
-		changeCheckbox = true;
-		for (const [record, _] of ev.items) {
-			if (record.prop) {
-				const prop = await record.getAdaptedProp();
-				if (record.getCheckboxState()) {
-					prop.addBreakpoint();
-				} else {
-					prop.removeBreakpoint();
-				}
-			}
-		}
-		provider.writeToFile();
-		changeCheckbox = false;
-	}));
-	// Update checkbox when breakpoint changes
-	context.subscriptions.push(vscode.debug.onDidChangeBreakpoints((ev) => {
-		if (!changeCheckbox) provider.updateCheckBox();
-	}));
 }
 export function deactivate() {
 	provider = null;
