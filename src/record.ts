@@ -143,6 +143,27 @@ export class RecordProp implements IRecordProp {
 		}
 	}
 
+	async shouldUpdate() {
+		const repo = gitAPI.getRepository(decodePath(this.file));
+		if (!repo) {
+			// Always allow in-place update if no repo is found.
+			return true;
+		}
+		const changes = repo.state.workingTreeChanges;
+		if (changes.length != 0) {
+			// Disable in-place update if there are changed files.
+			return false;
+		}
+		const onlyMain = vscode.workspace.getConfiguration("bugmark").get("onlyUpdateOnMainBranch") as boolean;
+		if (onlyMain) {
+			// User configured to only allow in-place update on main branch.
+			const base = await repo.getBranchBase("HEAD");
+			// Main branch does not have a base branch.
+			return base == undefined;
+		}
+		return true;
+	}
+
 	async fixFileLocation() {
 		const repo = gitAPI.getRepository(decodePath(this.file));
 		const curURI = decodePath(this.file);
@@ -160,7 +181,7 @@ export class RecordProp implements IRecordProp {
 
 	async fixLineNumber() {
 		const document = await this.openTextDocument();
-		let radius = vscode.workspace.getConfiguration("bugmark").get("searchRadius") as number;
+		const radius = vscode.workspace.getConfiguration("bugmark").get("searchRadius") as number;
 		let lineno = this.lineno;
 
 		const repo = gitAPI.getRepository(document.uri);
@@ -279,11 +300,14 @@ export class RecordItem extends vscode.TreeItem {
 	}
 
 	async getAdaptedProp(): Promise<RecordProp> {
-		const head = this.prop;
+		let prop = this.prop;
+		if (!await this.prop.shouldUpdate()) {
+			prop = new RecordProp(prop.file, prop.lineno, prop.content, prop.githash);
+		}
 		let changed = false;
-		changed ||= await head.fixFileLocation();
-		changed ||= await head.fixLineNumber();
-		return head;
+		changed ||= await prop.fixFileLocation();
+		changed ||= await prop.fixLineNumber();
+		return prop;
 	}
 
 	getTreePath() {

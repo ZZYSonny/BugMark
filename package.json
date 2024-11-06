@@ -101,13 +101,19 @@
           "bugmark.searchRadius": {
             "type": "number",
             "default": 30,
-            "description": "Search radius if content on the bookmarked line does not match.",
+            "description": "After finding the new location using git diff, bugmark will do another searching based on edit distance. This setting indicates how many lines above and below will be considered for this edit-distance-search.",
             "scope": "resource"
           },
           "bugmark.relative": {
             "type": "boolean",
             "default": false,
-            "description": "Use Relative Path",
+            "description": "If false, bugmark will use global path. If true, bugmark will encode the path as {workspaceFolder}/{relativePath}.",
+            "scope": "resource"
+          },
+          "bugmark.onlyUpdateOnMainBranch": {
+            "type": "boolean",
+            "default": true,
+            "description": "If true, bugmark will only update bookmarks when the current branch is the main branch of the repo. This setting is ignored when the bugmarked file does not belong to a repo.",
             "scope": "resource"
           },
           "bugmark.bookmarks": {
