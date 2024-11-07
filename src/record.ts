@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { distance } from 'fastest-levenshtein';
-import type { GitExtension, Change as GitChange } from './git.d.ts';
+import type { GitExtension, Change as GitChange, Repository as GitRepository } from './git.d.ts';
 
 const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
 
@@ -18,6 +18,15 @@ interface IRecordProp {
 }
 interface IRecordPropTree {
 	[key: string]: IRecordProp | IRecordPropTree
+}
+
+async function hasCommit(repo: GitRepository, hash: string) {
+	try {
+		const commit = await repo.getCommit(hash);
+		return commit;
+	} catch {
+		return undefined;
+	}
 }
 
 function encodePath(pathstr: string): string {
@@ -183,7 +192,7 @@ export class RecordProp implements IRecordProp {
 		const gitActivated = await gitExtension.activate();
 		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(oldURI);
-		if (repo) {
+		if (repo && await hasCommit(repo, this.githash)) {
 			let changes: GitChange[] = undefined;
 			if (changeCache) {
 				// Cache exists
@@ -220,7 +229,7 @@ export class RecordProp implements IRecordProp {
 		const gitActivated = await gitExtension.activate();
 		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(document.uri);
-		if (repo && this.githash) {
+		if (repo && await hasCommit(repo, this.githash)) {
 			let diff: string = undefined;
 			if (diffCache) {
 				// Cache exists
