@@ -79,6 +79,10 @@ export class RecordProp implements IRecordProp {
 		return this;
 	}
 
+	clone() {
+		return new RecordProp(this.file, this.lineno, this.content, this.githash);
+	}
+
 	static isProp(json: IRecordProp | IRecordPropTree) {
 		const requiredKeys = ["file", "lineno", "content"];
 		const keys = Object.keys(json);
@@ -95,11 +99,19 @@ export class RecordProp implements IRecordProp {
 	}
 
 	// Breakpoint related ops
-	matchBreakpoint(bp: vscode.Breakpoint): boolean {
+	matchBreakpointFile(bp: vscode.Breakpoint): boolean {
 		// Match some breakpoint?
 		return (
 			(bp instanceof vscode.SourceBreakpoint) &&
-			(bp.location.uri.path === decodePath(this.file).path) &&
+			(bp.location.uri.path === decodePath(this.file).path)
+		);
+	}
+
+	// Breakpoint related ops
+	matchBreakpointLine(bp: vscode.Breakpoint): boolean {
+		// Match some breakpoint?
+		return (
+			(bp instanceof vscode.SourceBreakpoint) &&
 			(bp.location.range.start.line === this.lineno)
 		);
 	}
@@ -116,7 +128,7 @@ export class RecordProp implements IRecordProp {
 
 	removeBreakpoint(): void {
 		const bp = vscode.debug.breakpoints.find(
-			(b) => this.matchBreakpoint(b)
+			(b) => this.matchBreakpointFile(b) && this.matchBreakpointLine(b)
 		);
 		vscode.debug.removeBreakpoints([bp]);
 	}
@@ -168,14 +180,20 @@ export class RecordProp implements IRecordProp {
 	}
 
 	async fixFileLocation() {
+		const oldURI = decodePath(this.file);
 		const gitActivated = await gitExtension.activate();
 		const gitAPI = gitActivated.getAPI(1);
-		const repo = gitAPI.getRepository(decodePath(this.file));
+		const repo = gitAPI.getRepository(oldURI);
 		if (repo) {
-			const curURI = decodePath(this.file);
+			if (repo.state.HEAD.commit == this.githash) {
+				// Do not check for rename if the file is in the same commit.
+				// This may not be true if the file is renamed in the same commit.
+				// We will revisit this if it causes problems.
+				return false;
+			}
 			const changes = await repo.diffIndexWith(this.githash);
 			for (const change of changes) {
-				if (change.status == 3 && change.originalUri.fsPath == curURI.fsPath) {
+				if (change.status == 3 && change.originalUri.fsPath == oldURI.fsPath) {
 					this.file = encodePath(change.renameUri.fsPath);
 					return true;
 				}
@@ -308,11 +326,10 @@ export class RecordItem extends vscode.TreeItem {
 	async getAdaptedProp(): Promise<RecordProp> {
 		let prop = this.prop;
 		if (!await this.prop.shouldUpdate()) {
-			prop = new RecordProp(prop.file, prop.lineno, prop.content, prop.githash);
+			prop = prop.clone();
 		}
-		let changed = false;
-		changed ||= await prop.fixFileLocation();
-		changed ||= await prop.fixLineNumber();
+		await prop.fixFileLocation();
+		await prop.fixLineNumber();
 		return prop;
 	}
 
@@ -378,15 +395,21 @@ export class RecordItem extends vscode.TreeItem {
 
 	// Updater
 	async updateCheckBox() {
-		const oldState = this.getCheckboxState();
 		let newState = false;
 		if (this.prop) {
 			// Current node is a leaf node representing some source location
 			// Tick if the line is already a breakpoint
-			const prop = await this.getAdaptedProp();
-			newState = vscode.debug.breakpoints.some(
-				(bp) => prop.matchBreakpoint(bp)
-			);
+			const filtered0 = vscode.debug.breakpoints;
+			if (filtered0.length) {
+				const prop = this.prop.clone();
+				await prop.fixFileLocation();
+				const filtered1 = filtered0.filter((bp) => prop.matchBreakpointFile(bp));
+				if (filtered1.length) {
+					await prop.fixLineNumber();
+					const filtered2 = filtered1.filter((bp) => prop.matchBreakpointLine(bp));
+					newState = filtered2.length > 0;
+				}
+			}
 		}
 		if (this.children.length > 0) {
 			// Current node is a tree node
@@ -396,19 +419,14 @@ export class RecordItem extends vscode.TreeItem {
 		this.checkboxState = newState
 			? vscode.TreeItemCheckboxState.Checked
 			: vscode.TreeItemCheckboxState.Unchecked;
-		// Return if the state has changed.
-		return oldState != newState;
 	}
 
-	async forEach(f: (x: RecordItem) => Promise<boolean>): Promise<RecordItem | null> {
+	async forEach(f: (x: RecordItem) => Promise<void>): Promise<void> {
 		// Perform forEach for all children nodes
 		// And return the LCA of all changed nodes.
-		const childs = await Promise.all(this.children.map(x => x.forEach(f)));
-		const res = childs.filter(x => x);
-		// If current node or multiple children node needs updating
-		if (f(this) || res.length > 1) return this;
-		// Only one child node needs updating
-		else if (res.length == 1) return res[0];
-		else return null;
+		for (const child of this.children) {
+			await child.forEach(f);
+		}
+		f(this);
 	}
 }
