@@ -185,12 +185,6 @@ export class RecordProp implements IRecordProp {
 		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(oldURI);
 		if (repo) {
-			if (repo.state.HEAD.commit == this.githash) {
-				// Do not check for rename if the file is in the same commit.
-				// This may not be true if the file is renamed in the same commit.
-				// We will revisit this if it causes problems.
-				return false;
-			}
 			const changes = await repo.diffIndexWith(this.githash);
 			for (const change of changes) {
 				if (change.status == 3 && change.originalUri.fsPath == oldURI.fsPath) {

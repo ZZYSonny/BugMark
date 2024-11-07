@@ -183,9 +183,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		provider.writeToFile();
 		changeCheckbox = false;
 	}));
-	// Update checkbox when breakpoint changes
+	// Update checkbox when new breakpoint is added or removed
 	context.subscriptions.push(vscode.debug.onDidChangeBreakpoints((ev) => {
-		if (!changeCheckbox) provider.updateCheckBox();
+		if (!changeCheckbox) {
+			if (ev.changed.length == 0) {
+				provider.updateCheckBox();
+			}
+		}
 	}));
 }
 export function deactivate() {
