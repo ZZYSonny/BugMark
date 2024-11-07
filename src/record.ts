@@ -179,23 +179,24 @@ export class RecordProp implements IRecordProp {
 		return true;
 	}
 
-	async fixFileLocation(fileCache: Map<string, Promise<any>> | undefined = undefined) {
+	async fixFileLocation(changeCache: Map<string, Promise<any>> | undefined = undefined) {
 		const oldURI = decodePath(this.file);
 		const gitActivated = await gitExtension.activate();
 		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(oldURI);
 		if (repo) {
 			let changes = undefined;
-			if (fileCache) {
+			if (changeCache) {
 				// Cache exists
-				const cached = fileCache.get(this.githash);
+				const key = this.githash;
+				const cached = changeCache.get(key);
 				if (cached) {
 					// An earlier item has initiated query, wait on the cached promise
 					changes = await cached;
 				} else {
 					// Initialize query and wait
 					const query = repo.diffIndexWith(this.githash);
-					fileCache.set(this.githash, query);
+					changeCache.set(key, query);
 					changes = await query;
 				}
 			} else {
@@ -212,7 +213,7 @@ export class RecordProp implements IRecordProp {
 		return false;
 	}
 
-	async fixLineNumber() {
+	async fixLineNumber(diffCache: Map<string, Promise<any>> | undefined = undefined) {
 		const document = await this.openTextDocument();
 		const radius = vscode.workspace.getConfiguration("bugmark").get("searchRadius") as number;
 		let lineno = this.lineno;
@@ -221,7 +222,24 @@ export class RecordProp implements IRecordProp {
 		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(document.uri);
 		if (repo && this.githash) {
-			const diff = await repo.diffBetween(this.githash, "HEAD", document.uri.fsPath);
+			let diff: string = undefined;
+			if (diffCache) {
+				// Cache exists
+				const key = this.githash + this.file;
+				const cached = diffCache.get(key);
+				if (cached) {
+					// An earlier item has initiated query, wait on the cached promise
+					diff = await cached;
+				} else {
+					// Initialize query and wait
+					const query = repo.diffBetween(this.githash, "HEAD", document.uri.fsPath);
+					diffCache.set(key, query);
+					diff = await query;
+				}
+			} else {
+				// Cache does not exist.
+				diff = await repo.diffBetween(this.githash, "HEAD", document.uri.fsPath);
+			}
 			const difflines = diff.split("\n");
 			for (let i = 0; i < difflines.length; i++) {
 				const hunkHeaderMatch = /^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@/.exec(difflines[i]);
@@ -404,7 +422,8 @@ export class RecordItem extends vscode.TreeItem {
 	}
 
 	// Updater
-	async updateCheckBox(fileCache: Map<string, Promise<any>> | undefined = undefined) {
+	async updateCheckBox(changeCache: Map<string, Promise<any>> | undefined = undefined,
+		diffCache: Map<string, Promise<any>> | undefined = undefined) {
 		let newState = false;
 		if (this.prop) {
 			// Current node is a leaf node representing some source location
@@ -412,10 +431,10 @@ export class RecordItem extends vscode.TreeItem {
 			const filtered0 = vscode.debug.breakpoints;
 			if (filtered0.length) {
 				const prop = this.prop.clone();
-				await prop.fixFileLocation(fileCache);
+				await prop.fixFileLocation(changeCache);
 				const filtered1 = filtered0.filter((bp) => prop.matchBreakpointFile(bp));
 				if (filtered1.length) {
-					await prop.fixLineNumber();
+					await prop.fixLineNumber(diffCache);
 					const filtered2 = filtered1.filter((bp) => prop.matchBreakpointLine(bp));
 					newState = filtered2.length > 0;
 				}

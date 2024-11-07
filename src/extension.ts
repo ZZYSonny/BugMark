@@ -45,9 +45,10 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 
 	async updateCheckBox() {
 		//const start = Date.now();
-		const fileCache = new Map<string, Promise<any>>();
+		const changeCache = new Map<string, Promise<any>>();
+		const diffCache = new Map<string, Promise<any>>();
 		await this.root.forEach(
-			(x) => x.updateCheckBox(fileCache)
+			async (x) => await x.updateCheckBox(changeCache, diffCache)
 		);
 		this.refresh(this.root);
 		//const end = Date.now();
@@ -75,7 +76,6 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 	}
 }
 
-let provider = new BugMarkTreeProvider();
 
 function waitGitInitialize() {
 	return new Promise<void>(async (resolve, reject) => {
@@ -94,6 +94,7 @@ function waitGitInitialize() {
 
 export async function activate(context: vscode.ExtensionContext) {
 	await waitGitInitialize();
+	let provider = new BugMarkTreeProvider();
 	// Register view
 	let view = vscode.window.createTreeView(
 		"bugmark.view.bookmarks",
@@ -114,6 +115,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					await RecordProp.fromCursor()
 				);
 				provider.addItemWithPath(path, item);
+				provider.updateCheckBox();
 			} else {
 				throw "No input"
 			}
@@ -158,6 +160,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				const path = pathstr.split("/");
 				item.label = path.pop();
 				provider.renameItem(path, item);
+				provider.updateCheckBox();
 			} else {
 				throw "No input"
 			}
@@ -165,7 +168,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	))
 	context.subscriptions.push(vscode.commands.registerCommand(
 		"bugmark.view.item.remove",
-		(item: RecordItem) => provider.removeItem(item)
+		(item: RecordItem) => {
+			provider.removeItem(item);
+			provider.updateCheckBox();
+		}
 	))
 	// Change breakpoint when checkbox state changes
 	let changeCheckbox = false;
@@ -192,7 +198,4 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}
 	}));
-}
-export function deactivate() {
-	provider = null;
 }
