@@ -177,13 +177,6 @@ export class RecordProp implements IRecordProp {
 			// Disable in-place update if there are changed files.
 			return false;
 		}
-		const onlyMain = vscode.workspace.getConfiguration("bugmark").get("onlyUpdateOnMainBranch") as boolean;
-		if (onlyMain) {
-			// User configured to only allow in-place update on main branch.
-			const base = await repo.getBranchBase(repo.state.HEAD.name);
-			// Main branch does not have a base branch.
-			return base == undefined;
-		}
 		return true;
 	}
 

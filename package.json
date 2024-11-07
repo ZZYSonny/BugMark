@@ -7,7 +7,7 @@
   },
   "publisher": "zzysonny",
   "description": "",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -108,12 +108,6 @@
             "type": "boolean",
             "default": false,
             "description": "If false, bugmark will use global path. If true, bugmark will encode the path as {workspaceFolder}/{relativePath}.",
-            "scope": "resource"
-          },
-          "bugmark.onlyUpdateOnMainBranch": {
-            "type": "boolean",
-            "default": true,
-            "description": "If true, bugmark will only update bookmarks when the current branch is the main branch of the repo. This setting is ignored when the bugmarked file does not belong to a repo.",
             "scope": "resource"
           },
           "bugmark.bookmarks": {
