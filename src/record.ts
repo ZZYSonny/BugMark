@@ -167,16 +167,18 @@ export class RecordProp implements IRecordProp {
 	async shouldUpdate() {
 		const gitActivated = await gitExtension.activate();
 		const gitAPI = gitActivated.getAPI(1);
-		const repo = gitAPI.getRepository(decodePath(this.file));
+		const uri = decodePath(this.file);
+		const repo = gitAPI.getRepository(uri);
 		if (!repo) {
-			// Always allow in-place update if no repo is found.
+			// Always update bugmark entries if no repo is found.
 			return true;
 		}
 		const changes = repo.state.workingTreeChanges;
-		if (changes.length != 0) {
-			// Disable in-place update if there are changed files.
-			return false;
-		}
+		for (const change of changes)
+			if (change.originalUri.fsPath == uri.fsPath) {
+				// Do not update if the file has been modified.
+				return false;
+			}
 		return true;
 	}
 
