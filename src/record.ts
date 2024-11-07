@@ -424,8 +424,8 @@ export class RecordItem extends vscode.TreeItem {
 	// Updater
 	async updateCheckBox(changeCache: Map<string, Promise<any>> | undefined = undefined,
 		diffCache: Map<string, Promise<any>> | undefined = undefined) {
-		let newState = false;
 		if (this.prop) {
+			let matches = false;
 			// Current node is a leaf node representing some source location
 			// Tick if the line is already a breakpoint
 			const filtered0 = vscode.debug.breakpoints;
@@ -436,18 +436,13 @@ export class RecordItem extends vscode.TreeItem {
 				if (filtered1.length) {
 					await prop.fixLineNumber(diffCache);
 					const filtered2 = filtered1.filter((bp) => prop.matchBreakpointLine(bp));
-					newState = filtered2.length > 0;
+					matches = filtered2.length > 0;
 				}
 			}
+			this.checkboxState = matches
+				? vscode.TreeItemCheckboxState.Checked
+				: vscode.TreeItemCheckboxState.Unchecked;
 		}
-		if (this.children.length > 0) {
-			// Current node is a tree node
-			// Tick if all children nodes are ticked.
-			newState = this.children.every((c) => c.getCheckboxState());
-		}
-		this.checkboxState = newState
-			? vscode.TreeItemCheckboxState.Checked
-			: vscode.TreeItemCheckboxState.Unchecked;
 	}
 
 	async forEach(f: (x: RecordItem) => Promise<void>): Promise<void> {
