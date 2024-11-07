@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { RecordItem, RecordProp } from './record';
-import { GitExtension } from './git';
+import type { GitExtension } from './git.d.ts';
 
 export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> {
 	private emitterOnDidChangeTreeData = new vscode.EventEmitter<RecordItem>();

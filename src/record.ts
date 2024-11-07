@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { distance } from 'fastest-levenshtein';
-import { GitExtension } from './git';
+import type { GitExtension, Change as GitChange } from './git.d.ts';
 
 const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
 
@@ -185,7 +185,7 @@ export class RecordProp implements IRecordProp {
 		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(oldURI);
 		if (repo) {
-			let changes = undefined;
+			let changes: GitChange[] = undefined;
 			if (changeCache) {
 				// Cache exists
 				const key = this.githash;
@@ -232,13 +232,13 @@ export class RecordProp implements IRecordProp {
 					diff = await cached;
 				} else {
 					// Initialize query and wait
-					const query = repo.diffBetween(this.githash, "HEAD", document.uri.fsPath);
+					const query = repo.diffWith(this.githash, document.uri.fsPath);
 					diffCache.set(key, query);
 					diff = await query;
 				}
 			} else {
 				// Cache does not exist.
-				diff = await repo.diffBetween(this.githash, "HEAD", document.uri.fsPath);
+				diff = await repo.diffWith(this.githash, document.uri.fsPath);
 			}
 			const difflines = diff.split("\n");
 			for (let i = 0; i < difflines.length; i++) {
