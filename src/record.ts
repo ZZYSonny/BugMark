@@ -179,13 +179,29 @@ export class RecordProp implements IRecordProp {
 		return true;
 	}
 
-	async fixFileLocation() {
+	async fixFileLocation(fileCache: Map<string, Promise<any>> | undefined = undefined) {
 		const oldURI = decodePath(this.file);
 		const gitActivated = await gitExtension.activate();
 		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(oldURI);
 		if (repo) {
-			const changes = await repo.diffIndexWith(this.githash);
+			let changes = undefined;
+			if (fileCache) {
+				// Cache exists
+				const cached = fileCache.get(this.githash);
+				if (cached) {
+					// An earlier item has initiated query, wait on the cached promise
+					changes = await cached;
+				} else {
+					// Initialize query and wait
+					const query = repo.diffIndexWith(this.githash);
+					fileCache.set(this.githash, query);
+					changes = await query;
+				}
+			} else {
+				// Cache does not exist.
+				changes = await repo.diffIndexWith(this.githash);
+			}
 			for (const change of changes) {
 				if (change.status == 3 && change.originalUri.fsPath == oldURI.fsPath) {
 					this.file = encodePath(change.renameUri.fsPath);
@@ -388,7 +404,7 @@ export class RecordItem extends vscode.TreeItem {
 	}
 
 	// Updater
-	async updateCheckBox() {
+	async updateCheckBox(fileCache: Map<string, Promise<any>> | undefined = undefined) {
 		let newState = false;
 		if (this.prop) {
 			// Current node is a leaf node representing some source location
@@ -396,7 +412,7 @@ export class RecordItem extends vscode.TreeItem {
 			const filtered0 = vscode.debug.breakpoints;
 			if (filtered0.length) {
 				const prop = this.prop.clone();
-				await prop.fixFileLocation();
+				await prop.fixFileLocation(fileCache);
 				const filtered1 = filtered0.filter((bp) => prop.matchBreakpointFile(bp));
 				if (filtered1.length) {
 					await prop.fixLineNumber();

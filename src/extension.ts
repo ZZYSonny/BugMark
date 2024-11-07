@@ -45,8 +45,9 @@ export class BugMarkTreeProvider implements vscode.TreeDataProvider<RecordItem> 
 
 	async updateCheckBox() {
 		//const start = Date.now();
+		const fileCache = new Map<string, Promise<any>>();
 		await this.root.forEach(
-			(x) => x.updateCheckBox()
+			(x) => x.updateCheckBox(fileCache)
 		);
 		this.refresh(this.root);
 		//const end = Date.now();
