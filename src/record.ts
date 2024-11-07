@@ -63,8 +63,7 @@ export class RecordProp implements IRecordProp {
 		const gitAPI = gitActivated.getAPI(1);
 		const repo = gitAPI.getRepository(document.uri)
 		if (repo) {
-			const commit = await repo.getCommit("HEAD");
-			hash = commit.hash;
+			hash = repo.state.HEAD.commit;
 		}
 
 		return new RecordProp(
@@ -172,7 +171,7 @@ export class RecordProp implements IRecordProp {
 		const onlyMain = vscode.workspace.getConfiguration("bugmark").get("onlyUpdateOnMainBranch") as boolean;
 		if (onlyMain) {
 			// User configured to only allow in-place update on main branch.
-			const base = await repo.getBranchBase("HEAD");
+			const base = await repo.getBranchBase(repo.state.HEAD.name);
 			// Main branch does not have a base branch.
 			return base == undefined;
 		}
@@ -255,8 +254,14 @@ export class RecordProp implements IRecordProp {
 					}
 					else if (lineno >= startA && lineno < startA + countA) {
 						// The original line was changed in this hunk, trace the changes
-						let cnt = lineno - startA + 1;
-						lineno = startB - 1;
+						// We should find at least `cnt` lines in the original file
+						// +1 for hunk being 1-indexed and vscode being 0-indexed
+						// +1 so that lineno == startA gives cnt=1
+						let cnt = (lineno + 1) - startA + 1;
+						// Line number in the current file.
+						// -1 for hunk being 1-indexed and vscode being 0-indexed
+						// -1 for not incrementing lineno on the last line
+						lineno = startB - 2;
 						for (let j = i + 1; cnt != 0; j++) {
 							if (difflines[j].startsWith("+")) {
 								// New Line Added
@@ -276,7 +281,6 @@ export class RecordProp implements IRecordProp {
 				}
 			}
 		}
-
 		let bestLine = lineno;
 		let bestScore = this.content.length;
 		for (let i = 0; i < radius; i++) {
@@ -295,8 +299,7 @@ export class RecordProp implements IRecordProp {
 			this.lineno = bestLine;
 			this.content = document.lineAt(this.lineno).text;
 			if (repo) {
-				const commit = await repo.getCommit("HEAD");
-				this.githash = commit.hash;
+				this.githash = repo.state.HEAD.commit;
 			}
 			return true;
 		}
