@@ -451,6 +451,6 @@ export class RecordItem extends vscode.TreeItem {
 		for (const child of this.children) {
 			await child.forEach(f);
 		}
-		f(this);
+		await f(this);
 	}
 }
